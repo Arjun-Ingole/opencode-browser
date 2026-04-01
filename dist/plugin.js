@@ -12360,7 +12360,7 @@ function getAgentCapabilities() {
     coordinate_actions: true,
     pointer_buttons: true,
     drag: true,
-    geometry: false,
+    geometry: true,
     frames: false,
     dialogs: false,
     network_observability: false,
@@ -12656,6 +12656,22 @@ function buildAgentPageTextScript(limit, pattern, flags) {
     };
   `);
 }
+function buildAgentViewportScript() {
+  return buildEvalScript(`
+    return {
+      ok: true,
+      value: {
+        width: window.innerWidth,
+        height: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio || 1,
+        scrollX: window.scrollX,
+        scrollY: window.scrollY,
+        url: location.href,
+        title: document.title,
+      },
+    };
+  `);
+}
 function buildAgentListScript(selector, limit) {
   const payload = { selector, limit };
   return buildEvalScript(`
@@ -12673,6 +12689,89 @@ function buildAgentListScript(selector, limit) {
       ariaLabel: element.getAttribute ? element.getAttribute("aria-label") : null,
     }));
     return { ok: true, value: { items, count: nodes.length } };
+  `);
+}
+function buildAgentInteractivesScript(limit) {
+  const payload = { limit };
+  return buildEvalScript(`
+    const payload = ${JSON.stringify(payload)};
+    const isVisible = (element) => {
+      if (!element) return false;
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return false;
+      const style = window.getComputedStyle(element);
+      return style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
+    };
+    const isInteractive = (element) => {
+      const tag = String(element.tagName || "").toUpperCase();
+      if (["A", "BUTTON", "INPUT", "TEXTAREA", "SELECT", "OPTION", "SUMMARY"].includes(tag)) return true;
+      if (element.isContentEditable) return true;
+      if (element.getAttribute && element.getAttribute("onclick")) return true;
+      if (element.getAttribute && element.getAttribute("role")) return true;
+      if (Number(element.tabIndex) >= 0) return true;
+      try {
+        return window.getComputedStyle(element).cursor === "pointer";
+      } catch {
+        return false;
+      }
+    };
+    const getLabel = (element) => {
+      const ariaLabel = typeof element.getAttribute === "function" ? element.getAttribute("aria-label") : "";
+      if (ariaLabel) return ariaLabel;
+      const text = String(element.innerText || element.textContent || "").replace(/\\s+/g, " ").trim();
+      if (text) return text.slice(0, 200);
+      const title = typeof element.getAttribute === "function" ? element.getAttribute("title") : "";
+      if (title) return title;
+      const placeholder = typeof element.getAttribute === "function" ? element.getAttribute("placeholder") : "";
+      if (placeholder) return placeholder;
+      return "";
+    };
+    const maxItems = Math.min(Math.max(1, payload.limit || ${DEFAULT_LIST_LIMIT}), 200);
+    const matches = Array.from(document.querySelectorAll("*"))
+      .filter((element) => isVisible(element) && isInteractive(element));
+    const nodes = matches.slice(0, maxItems);
+    const items = nodes.map((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        tag: String(element.tagName || "").toLowerCase(),
+        role: typeof element.getAttribute === "function" ? (element.getAttribute("role") || String(element.tagName || "").toLowerCase()) : String(element.tagName || "").toLowerCase(),
+        label: getLabel(element),
+        selector: element.id ? "#" + element.id : undefined,
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+        centerX: rect.left + rect.width / 2,
+        centerY: rect.top + rect.height / 2,
+      };
+    });
+    return { ok: true, value: { items, count: matches.length } };
+  `);
+}
+function buildAgentNthBoundingBoxScript(selector, indexValue) {
+  const payload = { selector, index: indexValue };
+  return buildEvalScript(`
+    const payload = ${JSON.stringify(payload)};
+    let nodes = [];
+    try {
+      nodes = Array.from(document.querySelectorAll(payload.selector));
+    } catch {
+      return { ok: false, error: "Invalid selector" };
+    }
+    const element = nodes[payload.index];
+    if (!element) return { ok: false, error: "Element not found" };
+    const rect = element.getBoundingClientRect();
+    return {
+      ok: true,
+      value: {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+        centerX: rect.left + rect.width / 2,
+        centerY: rect.top + rect.height / 2,
+      },
+    };
   `);
 }
 function buildAgentNthValueScript(selector, indexValue) {
@@ -12933,6 +13032,10 @@ function createAgentBackend(sessionId) {
       const pageText = await agentEvaluate(buildAgentPageTextScript(limitValue, pattern, flags));
       return { content: JSON.stringify({ ok: true, value: pageText }, null, 2) };
     }
+    if (mode === "interactives") {
+      const result = ensureEvalResult(await agentEvaluate(buildAgentInteractivesScript(limitValue)), "Interactives lookup failed");
+      return { content: JSON.stringify({ ok: true, value: result }, null, 2) };
+    }
     if (!selector)
       throw new Error("selector is required");
     if (mode === "exists") {
@@ -12976,6 +13079,26 @@ function createAgentBackend(sessionId) {
     if (mode === "html") {
       const result = ensureEvalResult(await agentEvaluate(buildAgentOuterHtmlScript(selector, indexValue)), "HTML lookup failed");
       return { content: typeof result === "string" ? result : JSON.stringify(result) };
+    }
+    if (mode === "bounding_box") {
+      if (indexValue > 0) {
+        const result = ensureEvalResult(await agentEvaluate(buildAgentNthBoundingBoxScript(selector, indexValue)), "Bounding box lookup failed");
+        return {
+          content: JSON.stringify({ ok: true, selectorUsed: selector, value: result }, null, 2)
+        };
+      }
+      const data = await agentCommand("boundingbox", { selector });
+      const value = {
+        x: Number(data?.x ?? 0),
+        y: Number(data?.y ?? 0),
+        width: Number(data?.width ?? 0),
+        height: Number(data?.height ?? 0),
+        centerX: Number(data?.x ?? 0) + Number(data?.width ?? 0) / 2,
+        centerY: Number(data?.y ?? 0) + Number(data?.height ?? 0) / 2
+      };
+      return {
+        content: JSON.stringify({ ok: true, selectorUsed: selector, value }, null, 2)
+      };
     }
     if (mode === "list") {
       const listResult = ensureEvalResult(await agentEvaluate(buildAgentListScript(selector, limitValue)), "List lookup failed");
@@ -13287,6 +13410,45 @@ function createAgentBackend(sessionId) {
           return { content: `Selected ${summary} in ${args.selector}` };
         });
       }
+      case "get_box": {
+        return await withTab(args.tabId, async () => {
+          if (!args.selector)
+            throw new Error("selector is required");
+          const indexValue = Number.isFinite(args.index) ? args.index : 0;
+          const timeoutValue = Number.isFinite(args.timeoutMs) ? args.timeoutMs : 0;
+          const pollValue = Number.isFinite(args.pollMs) ? args.pollMs : DEFAULT_POLL_MS;
+          const count = await waitForCount(args.selector, indexValue + 1, timeoutValue, pollValue);
+          if (count <= indexValue)
+            throw new Error(`No matches for selector: ${args.selector}`);
+          if (indexValue > 0) {
+            const result = ensureEvalResult(await agentEvaluate(buildAgentNthBoundingBoxScript(args.selector, indexValue)), "Bounding box lookup failed");
+            return { content: { ok: true, selectorUsed: args.selector, ...result } };
+          }
+          const data = await agentCommand("boundingbox", { selector: args.selector });
+          const x = Number(data?.x ?? 0);
+          const y = Number(data?.y ?? 0);
+          const width = Number(data?.width ?? 0);
+          const height = Number(data?.height ?? 0);
+          return {
+            content: {
+              ok: true,
+              selectorUsed: args.selector,
+              x,
+              y,
+              width,
+              height,
+              centerX: x + width / 2,
+              centerY: y + height / 2
+            }
+          };
+        });
+      }
+      case "get_viewport": {
+        return await withTab(args.tabId, async () => {
+          const result = ensureEvalResult(await agentEvaluate(buildAgentViewportScript()), "Viewport lookup failed");
+          return { content: { ok: true, ...result } };
+        });
+      }
       case "set_file_input": {
         return await withTab(args.tabId, async () => {
           if (!args.selector)
@@ -13309,7 +13471,12 @@ function createAgentBackend(sessionId) {
           const base643 = data?.base64 ? String(data.base64) : "";
           if (!base643)
             throw new Error("Screenshot failed");
-          return { content: `data:image/png;base64,${base643}` };
+          const image = `data:image/png;base64,${base643}`;
+          if (args.format === "structured") {
+            const viewport = ensureEvalResult(await agentEvaluate(buildAgentViewportScript()), "Viewport lookup failed");
+            return { content: { image, ...viewport } };
+          }
+          return { content: image };
         });
       }
       case "snapshot": {
@@ -13566,7 +13733,7 @@ function getNativeCapabilities() {
     coordinate_actions: true,
     pointer_buttons: true,
     drag: true,
-    geometry: false,
+    geometry: true,
     frames: false,
     dialogs: false,
     network_observability: false,
@@ -14144,6 +14311,30 @@ var plugin = async () => {
           return toolResultText(data, `Dragged from (${fromX}, ${fromY}) to (${toX}, ${toY})`);
         }
       }),
+      browser_get_box: tool({
+        description: "Get the viewport-relative bounding box for a visible element.",
+        args: {
+          selector: schema.string(),
+          index: schema.number().optional(),
+          tabId: schema.number().optional(),
+          timeoutMs: schema.number().optional(),
+          pollMs: schema.number().optional()
+        },
+        async execute({ selector, index, tabId, timeoutMs, pollMs }) {
+          const data = await toolRequest("get_box", { selector, index, tabId, timeoutMs, pollMs });
+          return toolResultText(data, "Bounding box lookup failed");
+        }
+      }),
+      browser_get_viewport: tool({
+        description: "Get viewport geometry and page metadata for the current tab.",
+        args: {
+          tabId: schema.number().optional()
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("get_viewport", { tabId });
+          return toolResultText(data, "Viewport lookup failed");
+        }
+      }),
       browser_click: tool({
         description: "Click an element on the page using a CSS selector",
         args: {
@@ -14258,12 +14449,13 @@ var plugin = async () => {
         }
       }),
       browser_screenshot: tool({
-        description: "Take a screenshot of the current page. Returns base64 image data URL.",
+        description: "Take a screenshot of the current page. Returns a data URL by default, or structured metadata.",
         args: {
-          tabId: schema.number().optional()
+          tabId: schema.number().optional(),
+          format: schema.string().optional()
         },
-        async execute({ tabId }) {
-          const data = await toolRequest("screenshot", { tabId });
+        async execute({ tabId, format }) {
+          const data = await toolRequest("screenshot", { tabId, format });
           return toolResultText(data, "Screenshot failed");
         }
       }),

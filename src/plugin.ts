@@ -259,7 +259,7 @@ function getNativeCapabilities(): Record<string, boolean | string> {
     coordinate_actions: true,
     pointer_buttons: true,
     drag: true,
-    geometry: false,
+    geometry: true,
     frames: false,
     dialogs: false,
     network_observability: false,
@@ -907,6 +907,32 @@ const plugin: Plugin = async () => {
         },
       }),
 
+      browser_get_box: tool({
+        description: "Get the viewport-relative bounding box for a visible element.",
+        args: {
+          selector: schema.string(),
+          index: schema.number().optional(),
+          tabId: schema.number().optional(),
+          timeoutMs: schema.number().optional(),
+          pollMs: schema.number().optional(),
+        },
+        async execute({ selector, index, tabId, timeoutMs, pollMs }) {
+          const data = await toolRequest("get_box", { selector, index, tabId, timeoutMs, pollMs });
+          return toolResultText(data, "Bounding box lookup failed");
+        },
+      }),
+
+      browser_get_viewport: tool({
+        description: "Get viewport geometry and page metadata for the current tab.",
+        args: {
+          tabId: schema.number().optional(),
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("get_viewport", { tabId });
+          return toolResultText(data, "Viewport lookup failed");
+        },
+      }),
+
       browser_click: tool({
         description: "Click an element on the page using a CSS selector",
         args: {
@@ -1029,12 +1055,13 @@ const plugin: Plugin = async () => {
       }),
 
       browser_screenshot: tool({
-        description: "Take a screenshot of the current page. Returns base64 image data URL.",
+        description: "Take a screenshot of the current page. Returns a data URL by default, or structured metadata.",
         args: {
           tabId: schema.number().optional(),
+          format: schema.string().optional(),
         },
-        async execute({ tabId }) {
-          const data = await toolRequest("screenshot", { tabId });
+        async execute({ tabId, format }) {
+          const data = await toolRequest("screenshot", { tabId, format });
           return toolResultText(data, "Screenshot failed");
         },
       }),

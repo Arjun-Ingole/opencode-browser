@@ -320,6 +320,8 @@ async function executeTool(toolName, args) {
     key_down: toolKeyDown,
     key_up: toolKeyUp,
     select: toolSelect,
+    get_box: toolGetBox,
+    get_viewport: toolGetViewport,
     screenshot: toolScreenshot,
     snapshot: toolSnapshot,
     query: toolQuery,
@@ -997,6 +999,74 @@ async function pageOps(command, args) {
     }
   }
 
+  function getViewportMetadata() {
+    return {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      devicePixelRatio: window.devicePixelRatio || 1,
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+      url: location.href,
+      title: document.title,
+    }
+  }
+
+  function getElementBox(el) {
+    const rect = el.getBoundingClientRect()
+    return {
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height,
+      centerX: rect.left + rect.width / 2,
+      centerY: rect.top + rect.height / 2,
+    }
+  }
+
+  function getElementLabel(el) {
+    const ariaLabel = safeString(el.getAttribute?.("aria-label"))
+    if (ariaLabel) return ariaLabel
+    const text = safeString(el.innerText || el.textContent).replace(/\s+/g, " ").trim()
+    if (text) return text.slice(0, 200)
+    const title = safeString(el.getAttribute?.("title"))
+    if (title) return title
+    const placeholder = safeString(el.getAttribute?.("placeholder"))
+    if (placeholder) return placeholder
+    return ""
+  }
+
+  function getElementRole(el) {
+    return safeString(el.getAttribute?.("role")) || safeString(el.tagName).toLowerCase()
+  }
+
+  function isInteractiveElement(el) {
+    const tag = safeString(el.tagName).toUpperCase()
+    if (["A", "BUTTON", "INPUT", "TEXTAREA", "SELECT", "OPTION", "SUMMARY"].includes(tag)) return true
+    if (el.isContentEditable) return true
+    if (safeString(el.getAttribute?.("onclick"))) return true
+    if (safeString(el.getAttribute?.("role"))) return true
+    if (Number(el.tabIndex) >= 0) return true
+    try {
+      return window.getComputedStyle(el).cursor === "pointer"
+    } catch {
+      return false
+    }
+  }
+
+  function buildInteractiveItems(limit) {
+    const maxItems = Math.min(Math.max(1, limit || 50), 200)
+    const matches = deepQuerySelectorAll("*", document).filter((el) => isVisible(el) && isInteractiveElement(el))
+    const nodes = matches.slice(0, maxItems)
+    const items = nodes.map((el) => ({
+      tag: safeString(el.tagName).toLowerCase(),
+      role: getElementRole(el),
+      label: getElementLabel(el),
+      selector: el.id ? `#${el.id}` : undefined,
+      ...getElementBox(el),
+    }))
+    return { items, count: matches.length }
+  }
+
   const mode = typeof options.mode === "string" && options.mode ? options.mode : "text"
   const selectors = normalizeSelectorList(options.selector)
   const index = Number.isFinite(options.index) ? options.index : 0
@@ -1262,6 +1332,10 @@ async function pageOps(command, args) {
     return { ok: true }
   }
 
+  if (command === "viewport") {
+    return { ok: true, value: getViewportMetadata() }
+  }
+
   if (command === "highlight") {
     const duration = Number.isFinite(options.duration) ? options.duration : 3000
     const color = typeof options.color === "string" ? options.color : "#ff0000"
@@ -1337,6 +1411,10 @@ async function pageOps(command, args) {
       return { ok: true, value: getPageText(limit, pattern, flags) }
     }
 
+    if (mode === "interactives") {
+      return { ok: true, value: buildInteractiveItems(limit) }
+    }
+
     if (!selectors.length) {
       return { ok: false, error: "Selector is required" }
     }
@@ -1377,6 +1455,14 @@ async function pageOps(command, args) {
 
     if (mode === "html") {
       return { ok: true, selectorUsed: match.selectorUsed, value: match.chosen.outerHTML }
+    }
+
+    if (mode === "bounding_box") {
+      return {
+        ok: true,
+        selectorUsed: match.selectorUsed,
+        value: getElementBox(match.chosen),
+      }
     }
 
     if (mode === "list") {
@@ -1651,9 +1737,48 @@ async function toolSelect({ selector, value, label, optionIndex, tabId, index = 
   return { tabId: tab.id, content: `Selected ${summary || "option"} in ${used}` }
 }
 
-async function toolScreenshot({ tabId }) {
+async function toolGetBox({ selector, tabId, index = 0, timeoutMs, pollMs }) {
+  if (!selector) throw new Error("selector is required")
+  const tab = await getTabById(tabId)
+  const result = await runInPage(tab.id, "query", {
+    selector,
+    mode: "bounding_box",
+    index,
+    timeoutMs,
+    pollMs,
+  })
+  if (!result?.ok) throw new Error(result?.error || "Bounding box lookup failed")
+  return {
+    tabId: tab.id,
+    content: {
+      ok: true,
+      selectorUsed: result.selectorUsed || selector,
+      ...(result.value || {}),
+    },
+  }
+}
+
+async function toolGetViewport({ tabId }) {
+  const tab = await getTabById(tabId)
+  const result = await runInPage(tab.id, "viewport", {})
+  if (!result?.ok) throw new Error(result?.error || "Viewport lookup failed")
+  return { tabId: tab.id, content: { ok: true, ...(result.value || {}) } }
+}
+
+async function toolScreenshot({ tabId, format }) {
   const tab = await getTabById(tabId)
   const png = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" })
+  if (format === "structured") {
+    const viewport = await runInPage(tab.id, "viewport", {})
+    if (!viewport?.ok) throw new Error(viewport?.error || "Viewport lookup failed")
+    return {
+      tabId: tab.id,
+      content: {
+        image: png,
+        ...(viewport.value || {}),
+      },
+    }
+  }
   return { tabId: tab.id, content: png }
 }
 
@@ -1823,7 +1948,7 @@ async function toolQuery({
   pattern,
   flags,
 }) {
-  if (!selector && mode !== "page_text") throw new Error("selector is required")
+  if (!selector && mode !== "page_text" && mode !== "interactives") throw new Error("selector is required")
   const tab = await getTabById(tabId)
 
   const result = await runInPage(tab.id, "query", {
@@ -1841,7 +1966,14 @@ async function toolQuery({
 
   if (!result?.ok) throw new Error(result?.error || "Query failed")
 
-  if (mode === "list" || mode === "property" || mode === "exists" || mode === "page_text") {
+  if (
+    mode === "list" ||
+    mode === "property" ||
+    mode === "exists" ||
+    mode === "page_text" ||
+    mode === "bounding_box" ||
+    mode === "interactives"
+  ) {
     return { tabId: tab.id, content: JSON.stringify(result, null, 2) }
   }
 
