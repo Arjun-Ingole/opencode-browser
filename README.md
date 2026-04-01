@@ -143,7 +143,7 @@ npx github:Arjun-Ingole/opencode-browser backend native
 - requested backend mode and where it came from
 - effective backend and selection reason
 - per-backend availability
-- capability flags (`profile_access`, `headless`, `tab_claims`, `file_uploads`, `downloads`)
+- capability flags (`profile_access`, `headless`, `tab_claims`, `file_uploads`, `downloads`, `coordinate_actions`, `pointer_buttons`, `drag`, `geometry`, `frames`, `dialogs`, `network_observability`, `debugger_input`)
 - active session identifier
 
 ## Agent Browser mode
@@ -197,9 +197,14 @@ export OPENCODE_BROWSER_AGENT_PORT=9833
 
 ## Available tools
 
-Core primitives:
+Tab and page state:
 - `browser_status`
+- `browser_get_active_tab`
 - `browser_get_tabs`
+- `browser_get_url`
+- `browser_get_title`
+- `browser_get_viewport`
+- `browser_list_frames`
 - `browser_list_claims`
 - `browser_claim_tab`
 - `browser_release_tab`
@@ -210,21 +215,52 @@ Core primitives:
 - `browser_back`
 - `browser_forward`
 - `browser_reload`
-- `browser_query` (modes: `text`, `value`, `list`, `exists`, `page_text`; optional `timeoutMs`/`pollMs`)
+
+Coordinate and pointer actions:
+- `browser_mouse_move`
+- `browser_left_click`
+- `browser_right_click`
+- `browser_middle_click`
+- `browser_double_click`
+- `browser_triple_click`
+- `browser_mouse_down`
+- `browser_mouse_up`
+- `browser_left_click_drag`
+
+Selector-driven actions:
 - `browser_click` (optional `timeoutMs`/`pollMs`)
 - `browser_hover` (optional `timeoutMs`/`pollMs`)
 - `browser_focus` (optional `timeoutMs`/`pollMs`)
 - `browser_type` (optional `timeoutMs`/`pollMs`)
 - `browser_key` (optional `selector`/`timeoutMs`/`pollMs`)
+- `browser_key_down`
+- `browser_key_up`
 - `browser_select` (optional `timeoutMs`/`pollMs`)
 - `browser_scroll` (optional `timeoutMs`/`pollMs`)
 - `browser_wait`
+- `browser_wait_for_url`
+- `browser_wait_for_load_state`
 
-Downloads:
+Geometry and inspection:
+- `browser_get_box`
+- `browser_query`
+  modes: `text`, `value`, `attribute`, `property`, `html`, `list`, `exists`, `page_text`, `bounding_box`, `interactives`
+- `browser_snapshot`
+- `browser_screenshot`
+  `browser_screenshot` returns a data URL by default; pass `format: "structured"` to also get viewport metadata (`width`, `height`, `devicePixelRatio`, `scrollX`, `scrollY`, `url`, `title`)
+- `browser_highlight`
+
+Diagnostics:
+- `browser_console`
+- `browser_errors`
+- `browser_network_requests`
+- `browser_dialog_accept`
+- `browser_dialog_dismiss`
+- `browser_version`
+
+Downloads and uploads:
 - `browser_download`
 - `browser_list_downloads`
-
-Uploads:
 - `browser_set_file_input` (extension backend supports small files; use agent backend for larger uploads)
 
 Selector helpers (usable in `selector`):
@@ -235,10 +271,18 @@ Selector helpers (usable in `selector`):
 
 Selector-based tools wait up to 2000ms by default; set `timeoutMs: 0` to disable.
 
-Diagnostics:
-- `browser_snapshot`
-- `browser_screenshot`
-- `browser_version`
+## Claude computer-use alignment
+
+This fork now exposes both DOM-first and coordinate-first controls:
+
+- coordinate tools for mouse movement, clicks, drag, and low-level mouse state
+- low-level keyboard controls with `browser_key_down` / `browser_key_up`
+- structured screenshots with viewport metadata
+- bounding-box lookup and interactive-element inventories
+- URL, title, frame, and load-state helpers
+- dialog control and recent network request inspection
+
+The native backend requires Chrome `debugger` permission for advanced pointer, dialog, and request-capture features. When the permission or backend is unavailable, tools fail explicitly rather than silently degrading.
 
 ## Roadmap
 
@@ -248,6 +292,10 @@ Diagnostics:
 - [x] Add download support (`browser_download`, `browser_list_downloads`)
 - [x] Add upload support (`browser_set_file_input`)
 - [x] Add dual-backend auto selection and richer `browser_status`
+- [x] Add coordinate-native mouse controls
+- [x] Add structured screenshot metadata and geometry helpers
+- [x] Add page state, frame, and load-wait helpers
+- [x] Add network request and dialog controls
 
 ## Troubleshooting
 
