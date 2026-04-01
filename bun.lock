@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "@different-ai/opencode-browser",
+      "name": "@arjun-ingole/opencode-browser",
       "dependencies": {
         "agent-browser": "^0.4.0",
       },

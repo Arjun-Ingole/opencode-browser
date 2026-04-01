@@ -2,7 +2,7 @@
 
 ## Goal
 
-Publish `@different-ai/opencode-browser` extension to Chrome Web Store and pass review.
+Publish `@arjun-ingole/opencode-browser` extension to Chrome Web Store and pass review.
 
 ## Scope
 

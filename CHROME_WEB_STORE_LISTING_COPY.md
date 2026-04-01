@@ -35,11 +35,11 @@ Important:
 
 ## Support URL
 
-https://github.com/different-ai/opencode-browser/issues
+https://github.com/Arjun-Ingole/opencode-browser/issues
 
 ## Homepage URL
 
-https://github.com/different-ai/opencode-browser
+https://github.com/Arjun-Ingole/opencode-browser
 
 ## Privacy policy URL
 

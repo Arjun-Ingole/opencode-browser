@@ -21,7 +21,7 @@ This version is optimized for reliability and predictable multi-session behavior
 > Help me improve this! 
 
 ```bash
-bunx @different-ai/opencode-browser@latest install
+bunx github:Arjun-Ingole/opencode-browser install
 ```
 
 Supports macOS, Linux, and Windows (Chrome/Edge/Brave/Chromium).
@@ -50,14 +50,14 @@ Your `opencode.json` or `opencode.jsonc` should contain:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@different-ai/opencode-browser"]
+  "plugin": ["github:Arjun-Ingole/opencode-browser"]
 }
 ```
 
 ### Update
 
 ```bash
-bunx @different-ai/opencode-browser@latest update
+bunx github:Arjun-Ingole/opencode-browser update
 ```
 
 ## CLI tool runner (for local debugging)
@@ -66,14 +66,18 @@ Run plugin tools directly from the package CLI (without starting an OpenCode ses
 
 ```bash
 # list available browser_* tools
-npx @different-ai/opencode-browser tools
+npx github:Arjun-Ingole/opencode-browser tools
 
 # run a single tool
-npx @different-ai/opencode-browser tool browser_status
-npx @different-ai/opencode-browser tool browser_query --args '{"mode":"page_text"}'
+npx github:Arjun-Ingole/opencode-browser tool browser_status
+npx github:Arjun-Ingole/opencode-browser tool browser_query --args '{"mode":"page_text"}'
 
 # run built-in end-to-end smoke test (click + text selector + container scroll)
-npx @different-ai/opencode-browser self-test
+npx github:Arjun-Ingole/opencode-browser self-test
+
+# inspect or persist backend preference
+npx github:Arjun-Ingole/opencode-browser backend
+npx github:Arjun-Ingole/opencode-browser backend auto
 ```
 
 This is useful for debugging issue reports (for example inbox/chat UIs) before involving a full OpenCode workflow.
@@ -108,9 +112,43 @@ OpenCode Plugin <-> Local Broker (unix socket) <-> Native Host <-> Chrome Extens
 - The plugin talks to the broker over a local unix socket.
 - The broker forwards tool requests to the extension and enforces tab ownership.
 
-## Agent Browser mode (alpha)
+## Backend selection
 
-This branch adds an alternate backend powered by `agent-browser` (Playwright). It runs headless and does **not** reuse your existing Chrome profile.
+OpenCode Browser now supports two backends behind one tool surface:
+
+- `extension` / Native Browser: uses your real Chromium profile
+- `agent` / Agent Browser: headless Playwright via `agent-browser`
+
+Selection precedence:
+
+1. `OPENCODE_BROWSER_BACKEND` or `OPENCODE_BROWSER_MODE`
+2. Saved default in `~/.opencode-browser/config.json`
+3. Built-in default: `auto`
+
+`auto` prefers `agent-browser` when it is reachable, then falls back to the native extension backend.
+Explicit `agent` or `native` selection does **not** silently switch; it fails clearly and tells you if the other backend is available.
+
+### Persist a default
+
+```bash
+npx github:Arjun-Ingole/opencode-browser backend auto
+npx github:Arjun-Ingole/opencode-browser backend agent
+npx github:Arjun-Ingole/opencode-browser backend native
+```
+
+### Status and capability reporting
+
+`browser_status` reports:
+
+- requested backend mode and where it came from
+- effective backend and selection reason
+- per-backend availability
+- capability flags (`profile_access`, `headless`, `tab_claims`, `file_uploads`, `downloads`)
+- active session identifier
+
+## Agent Browser mode
+
+The alternate backend is powered by `agent-browser` (Playwright). It runs headless and does **not** reuse your existing Chrome profile.
 
 ### Enable locally
 
@@ -166,11 +204,18 @@ Core primitives:
 - `browser_claim_tab`
 - `browser_release_tab`
 - `browser_open_tab`
+- `browser_set_active_tab`
 - `browser_close_tab`
 - `browser_navigate`
+- `browser_back`
+- `browser_forward`
+- `browser_reload`
 - `browser_query` (modes: `text`, `value`, `list`, `exists`, `page_text`; optional `timeoutMs`/`pollMs`)
 - `browser_click` (optional `timeoutMs`/`pollMs`)
+- `browser_hover` (optional `timeoutMs`/`pollMs`)
+- `browser_focus` (optional `timeoutMs`/`pollMs`)
 - `browser_type` (optional `timeoutMs`/`pollMs`)
+- `browser_key` (optional `selector`/`timeoutMs`/`pollMs`)
 - `browser_select` (optional `timeoutMs`/`pollMs`)
 - `browser_scroll` (optional `timeoutMs`/`pollMs`)
 - `browser_wait`
@@ -197,17 +242,23 @@ Diagnostics:
 
 ## Roadmap
 
-- [ ] Add tab management tools (`browser_set_active_tab`)
-- [ ] Add navigation helpers (`browser_back`, `browser_forward`, `browser_reload`)
-- [ ] Add keyboard input tool (`browser_key`)
+- [x] Add tab management tools (`browser_set_active_tab`)
+- [x] Add navigation helpers (`browser_back`, `browser_forward`, `browser_reload`)
+- [x] Add keyboard input tool (`browser_key`)
 - [x] Add download support (`browser_download`, `browser_list_downloads`)
 - [x] Add upload support (`browser_set_file_input`)
+- [x] Add dual-backend auto selection and richer `browser_status`
 
 ## Troubleshooting
 
 **Extension says native host not available**
-- Re-run `npx @different-ai/opencode-browser install`
+- Re-run `npx github:Arjun-Ingole/opencode-browser install`
 - If you loaded a custom extension ID, rerun with `--extension-id <id>`
+
+**Agent backend is selected but unavailable**
+- Run `npx github:Arjun-Ingole/opencode-browser agent-install`
+- Check `npx github:Arjun-Ingole/opencode-browser status`
+- Use `npx github:Arjun-Ingole/opencode-browser backend auto` to prefer agent but fall back to native
 
 **Tab ownership errors**
 - Errors usually mean you passed a `tabId` owned by another session
@@ -217,7 +268,7 @@ Diagnostics:
 ## Uninstall
 
 ```bash
-npx @different-ai/opencode-browser uninstall
+npx github:Arjun-Ingole/opencode-browser uninstall
 ```
 
 Then remove the unpacked extension in `chrome://extensions` and remove the plugin from `opencode.json` or `opencode.jsonc`.
