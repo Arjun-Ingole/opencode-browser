@@ -34,6 +34,14 @@ function getAgentCapabilities(): Record<string, boolean | string> {
     tab_claims: false,
     file_uploads: true,
     downloads: true,
+    coordinate_actions: true,
+    pointer_buttons: true,
+    drag: true,
+    geometry: false,
+    frames: false,
+    dialogs: false,
+    network_observability: false,
+    debugger_input: true,
   };
 }
 
@@ -256,6 +264,12 @@ function buildAgentHoverScript(selector: string, indexValue: number): string {
     } catch {}
     return { ok: true };
   `);
+}
+
+function normalizeMouseButton(button: unknown): "left" | "right" | "middle" {
+  const raw = typeof button === "string" ? button.trim().toLowerCase() : "";
+  if (raw === "right" || raw === "middle") return raw;
+  return "left";
 }
 
 function buildAgentSelectScript(
@@ -576,6 +590,61 @@ export function createAgentBackend(sessionId: string): AgentBackend {
     return await action();
   }
 
+  async function moveMouse(x: number, y: number): Promise<{ x: number; y: number }> {
+    const point = { x: Number(x), y: Number(y) };
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+      throw new Error("Mouse coordinates must be finite numbers");
+    }
+    await agentCommand("mousemove", point);
+    return point;
+  }
+
+  async function mouseDown(button: unknown): Promise<"left" | "right" | "middle"> {
+    const normalized = normalizeMouseButton(button);
+    await agentCommand("mousedown", { button: normalized });
+    return normalized;
+  }
+
+  async function mouseUp(button: unknown): Promise<"left" | "right" | "middle"> {
+    const normalized = normalizeMouseButton(button);
+    await agentCommand("mouseup", { button: normalized });
+    return normalized;
+  }
+
+  async function coordinateClick(x: number, y: number, button: unknown, clickCount: number): Promise<void> {
+    const point = await moveMouse(x, y);
+    const count = Math.max(1, Number.isFinite(clickCount) ? Math.floor(clickCount) : 1);
+    const normalized = normalizeMouseButton(button);
+    for (let i = 0; i < count; i++) {
+      await mouseDown(normalized);
+      await mouseUp(normalized);
+    }
+  }
+
+  async function coordinateDrag(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    steps: number
+  ): Promise<{ fromX: number; fromY: number; toX: number; toY: number; steps: number }> {
+    const start = await moveMouse(fromX, fromY);
+    const end = { x: Number(toX), y: Number(toY) };
+    if (!Number.isFinite(end.x) || !Number.isFinite(end.y)) {
+      throw new Error("Mouse coordinates must be finite numbers");
+    }
+    const totalSteps = Math.max(1, Number.isFinite(steps) ? Math.floor(steps) : 12);
+    await mouseDown("left");
+    for (let i = 1; i <= totalSteps; i++) {
+      const progress = i / totalSteps;
+      const x = start.x + (end.x - start.x) * progress;
+      const y = start.y + (end.y - start.y) * progress;
+      await moveMouse(x, y);
+    }
+    await mouseUp("left");
+    return { fromX: start.x, fromY: start.y, toX: end.x, toY: end.y, steps: totalSteps };
+  }
+
   async function agentEvaluate(script: string): Promise<any> {
     const data = await agentCommand("evaluate", { script });
     return data?.result;
@@ -767,6 +836,63 @@ export function createAgentBackend(sessionId: string): AgentBackend {
           return { content: "Reloaded tab" };
         });
       }
+      case "mouse_move": {
+        return await withTab(args.tabId, async () => {
+          const point = await moveMouse(args.x, args.y);
+          return { content: { ok: true, ...point } };
+        });
+      }
+      case "left_click": {
+        return await withTab(args.tabId, async () => {
+          const count = Number.isFinite(args.clickCount) ? args.clickCount : 1;
+          await coordinateClick(args.x, args.y, "left", count);
+          return { content: { ok: true, x: Number(args.x), y: Number(args.y), button: "left", clickCount: Math.max(1, Math.floor(count)) } };
+        });
+      }
+      case "right_click": {
+        return await withTab(args.tabId, async () => {
+          await coordinateClick(args.x, args.y, "right", 1);
+          return { content: { ok: true, x: Number(args.x), y: Number(args.y), button: "right", clickCount: 1 } };
+        });
+      }
+      case "middle_click": {
+        return await withTab(args.tabId, async () => {
+          await coordinateClick(args.x, args.y, "middle", 1);
+          return { content: { ok: true, x: Number(args.x), y: Number(args.y), button: "middle", clickCount: 1 } };
+        });
+      }
+      case "double_click": {
+        return await withTab(args.tabId, async () => {
+          await coordinateClick(args.x, args.y, "left", 2);
+          return { content: { ok: true, x: Number(args.x), y: Number(args.y), button: "left", clickCount: 2 } };
+        });
+      }
+      case "triple_click": {
+        return await withTab(args.tabId, async () => {
+          await coordinateClick(args.x, args.y, "left", 3);
+          return { content: { ok: true, x: Number(args.x), y: Number(args.y), button: "left", clickCount: 3 } };
+        });
+      }
+      case "mouse_down": {
+        return await withTab(args.tabId, async () => {
+          const point = await moveMouse(args.x, args.y);
+          const button = await mouseDown(args.button);
+          return { content: { ok: true, ...point, button } };
+        });
+      }
+      case "mouse_up": {
+        return await withTab(args.tabId, async () => {
+          const point = await moveMouse(args.x, args.y);
+          const button = await mouseUp(args.button);
+          return { content: { ok: true, ...point, button } };
+        });
+      }
+      case "left_click_drag": {
+        return await withTab(args.tabId, async () => {
+          const result = await coordinateDrag(args.fromX, args.fromY, args.toX, args.toY, args.steps);
+          return { content: { ok: true, ...result } };
+        });
+      }
       case "download": {
         return await withTab(args.tabId, async () => {
           const url = typeof args.url === "string" ? args.url.trim() : "";
@@ -891,6 +1017,20 @@ export function createAgentBackend(sessionId: string): AgentBackend {
             await agentCommand("press", { key: keyValue });
           }
           return { content: `Pressed ${keyValue}` };
+        });
+      }
+      case "key_down": {
+        return await withTab(args.tabId, async () => {
+          if (!args.key) throw new Error("key is required");
+          await agentCommand("keydown", { key: String(args.key) });
+          return { content: `Key down ${args.key}` };
+        });
+      }
+      case "key_up": {
+        return await withTab(args.tabId, async () => {
+          if (!args.key) throw new Error("key is required");
+          await agentCommand("keyup", { key: String(args.key) });
+          return { content: `Key up ${args.key}` };
         });
       }
       case "select": {

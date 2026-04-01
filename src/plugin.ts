@@ -256,6 +256,14 @@ function getNativeCapabilities(): Record<string, boolean | string> {
     tab_claims: true,
     file_uploads: "limited",
     downloads: true,
+    coordinate_actions: true,
+    pointer_buttons: true,
+    drag: true,
+    geometry: false,
+    frames: false,
+    dialogs: false,
+    network_observability: false,
+    debugger_input: true,
   };
 }
 
@@ -776,6 +784,129 @@ const plugin: Plugin = async () => {
         },
       }),
 
+      browser_mouse_move: tool({
+        description: "Move the mouse cursor to viewport coordinates.",
+        args: {
+          x: schema.number(),
+          y: schema.number(),
+          tabId: schema.number().optional(),
+        },
+        async execute({ x, y, tabId }) {
+          const data = await toolRequest("mouse_move", { x, y, tabId });
+          return toolResultText(data, `Moved mouse to (${x}, ${y})`);
+        },
+      }),
+
+      browser_left_click: tool({
+        description: "Left click at viewport coordinates.",
+        args: {
+          x: schema.number(),
+          y: schema.number(),
+          clickCount: schema.number().optional(),
+          tabId: schema.number().optional(),
+        },
+        async execute({ x, y, clickCount, tabId }) {
+          const data = await toolRequest("left_click", { x, y, clickCount, tabId });
+          return toolResultText(data, `Left clicked at (${x}, ${y})`);
+        },
+      }),
+
+      browser_right_click: tool({
+        description: "Right click at viewport coordinates.",
+        args: {
+          x: schema.number(),
+          y: schema.number(),
+          tabId: schema.number().optional(),
+        },
+        async execute({ x, y, tabId }) {
+          const data = await toolRequest("right_click", { x, y, tabId });
+          return toolResultText(data, `Right clicked at (${x}, ${y})`);
+        },
+      }),
+
+      browser_middle_click: tool({
+        description: "Middle click at viewport coordinates.",
+        args: {
+          x: schema.number(),
+          y: schema.number(),
+          tabId: schema.number().optional(),
+        },
+        async execute({ x, y, tabId }) {
+          const data = await toolRequest("middle_click", { x, y, tabId });
+          return toolResultText(data, `Middle clicked at (${x}, ${y})`);
+        },
+      }),
+
+      browser_double_click: tool({
+        description: "Double click at viewport coordinates.",
+        args: {
+          x: schema.number(),
+          y: schema.number(),
+          tabId: schema.number().optional(),
+        },
+        async execute({ x, y, tabId }) {
+          const data = await toolRequest("double_click", { x, y, tabId });
+          return toolResultText(data, `Double clicked at (${x}, ${y})`);
+        },
+      }),
+
+      browser_triple_click: tool({
+        description: "Triple click at viewport coordinates.",
+        args: {
+          x: schema.number(),
+          y: schema.number(),
+          tabId: schema.number().optional(),
+        },
+        async execute({ x, y, tabId }) {
+          const data = await toolRequest("triple_click", { x, y, tabId });
+          return toolResultText(data, `Triple clicked at (${x}, ${y})`);
+        },
+      }),
+
+      browser_mouse_down: tool({
+        description: "Press and hold a mouse button at viewport coordinates.",
+        args: {
+          x: schema.number(),
+          y: schema.number(),
+          button: schema.string().optional(),
+          tabId: schema.number().optional(),
+        },
+        async execute({ x, y, button, tabId }) {
+          const data = await toolRequest("mouse_down", { x, y, button, tabId });
+          return toolResultText(data, `Mouse down at (${x}, ${y})`);
+        },
+      }),
+
+      browser_mouse_up: tool({
+        description: "Release a mouse button at viewport coordinates.",
+        args: {
+          x: schema.number(),
+          y: schema.number(),
+          button: schema.string().optional(),
+          tabId: schema.number().optional(),
+        },
+        async execute({ x, y, button, tabId }) {
+          const data = await toolRequest("mouse_up", { x, y, button, tabId });
+          return toolResultText(data, `Mouse up at (${x}, ${y})`);
+        },
+      }),
+
+      browser_left_click_drag: tool({
+        description: "Drag from one viewport coordinate to another using the left mouse button.",
+        args: {
+          fromX: schema.number(),
+          fromY: schema.number(),
+          toX: schema.number(),
+          toY: schema.number(),
+          steps: schema.number().optional(),
+          tabId: schema.number().optional(),
+        },
+        async execute({ fromX, fromY, toX, toY, steps, tabId }) {
+          const data = await toolRequest("left_click_drag", { fromX, fromY, toX, toY, steps, tabId });
+          return toolResultText(data, `Dragged from (${fromX}, ${fromY}) to (${toX}, ${toY})`);
+        },
+      }),
+
       browser_click: tool({
         description: "Click an element on the page using a CSS selector",
         args: {
@@ -851,6 +982,30 @@ const plugin: Plugin = async () => {
         async execute({ key, selector, index, tabId, timeoutMs, pollMs }) {
           const data = await toolRequest("key", { key, selector, index, tabId, timeoutMs, pollMs });
           return toolResultText(data, `Pressed ${key}`);
+        },
+      }),
+
+      browser_key_down: tool({
+        description: "Press and hold a keyboard key.",
+        args: {
+          key: schema.string(),
+          tabId: schema.number().optional(),
+        },
+        async execute({ key, tabId }) {
+          const data = await toolRequest("key_down", { key, tabId });
+          return toolResultText(data, `Key down ${key}`);
+        },
+      }),
+
+      browser_key_up: tool({
+        description: "Release a held keyboard key.",
+        args: {
+          key: schema.string(),
+          tabId: schema.number().optional(),
+        },
+        async execute({ key, tabId }) {
+          const data = await toolRequest("key_up", { key, tabId });
+          return toolResultText(data, `Key up ${key}`);
         },
       }),
 

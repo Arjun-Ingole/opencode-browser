@@ -15,6 +15,7 @@ let nativePermissionHintLogged = false
 
 // Debugger state management for console/error capture
 const debuggerState = new Map()
+const mouseState = new Map()
 const MAX_LOG_ENTRIES = 1000
 
 async function hasPermissions(query) {
@@ -180,6 +181,7 @@ if (chrome.debugger?.onDetach) {
 }
 
 chrome.tabs.onRemoved.addListener((tabId) => {
+  mouseState.delete(tabId)
   if (debuggerState.has(tabId)) {
     if (chrome.debugger?.detach) chrome.debugger.detach({ tabId }).catch(() => {})
     debuggerState.delete(tabId)
@@ -301,11 +303,22 @@ async function executeTool(toolName, args) {
     back: toolBack,
     forward: toolForward,
     reload: toolReload,
+    mouse_move: toolMouseMove,
+    left_click: toolLeftClick,
+    right_click: toolRightClick,
+    middle_click: toolMiddleClick,
+    double_click: toolDoubleClick,
+    triple_click: toolTripleClick,
+    mouse_down: toolMouseDown,
+    mouse_up: toolMouseUp,
+    left_click_drag: toolLeftClickDrag,
     click: toolClick,
     hover: toolHover,
     focus: toolFocus,
     type: toolType,
     key: toolKey,
+    key_down: toolKeyDown,
+    key_up: toolKeyUp,
     select: toolSelect,
     screenshot: toolScreenshot,
     snapshot: toolSnapshot,
@@ -497,6 +510,99 @@ async function dispatchDebuggerKey(tabId, rawKey) {
     type: "keyUp",
     ...basePayload,
   })
+}
+
+function normalizeMouseButton(button) {
+  const raw = String(button || "left").trim().toLowerCase()
+  if (raw === "right" || raw === "middle" || raw === "left") return raw
+  return "left"
+}
+
+function mouseButtonMask(button) {
+  if (button === "left") return 1
+  if (button === "right") return 2
+  if (button === "middle") return 4
+  return 0
+}
+
+function clampMouseCoordinate(value) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) throw new Error("Mouse coordinates must be finite numbers")
+  return Math.max(0, n)
+}
+
+function getMouseState(tabId) {
+  return mouseState.get(tabId) || { x: 0, y: 0, buttons: 0, button: "left" }
+}
+
+async function dispatchDebuggerMouseEvent(tabId, type, options = {}) {
+  const state = await ensureDebuggerAttached(tabId)
+  if (!state.attached) {
+    throw new Error(state.unavailableReason || "Debugger is not available for mouse input.")
+  }
+
+  const prev = getMouseState(tabId)
+  const x = options.x === undefined ? prev.x : clampMouseCoordinate(options.x)
+  const y = options.y === undefined ? prev.y : clampMouseCoordinate(options.y)
+  const button = normalizeMouseButton(options.button || prev.button || "left")
+  let buttons = prev.buttons
+
+  if (type === "mousePressed") {
+    buttons = mouseButtonMask(button)
+  } else if (type === "mouseReleased") {
+    buttons = 0
+  } else if (options.buttons !== undefined) {
+    buttons = Number.isFinite(options.buttons) ? Number(options.buttons) : prev.buttons
+  }
+
+  const payload = {
+    type,
+    x,
+    y,
+    button: type === "mouseMoved" ? (buttons ? button : "none") : button,
+    buttons,
+    clickCount: Number.isFinite(options.clickCount) ? Number(options.clickCount) : 0,
+  }
+
+  await chrome.debugger.sendCommand({ tabId }, "Input.dispatchMouseEvent", payload)
+
+  mouseState.set(tabId, {
+    x,
+    y,
+    buttons,
+    button,
+  })
+
+  return { x, y, button, buttons }
+}
+
+async function dispatchCoordinateClick(tabId, x, y, button, clickCount = 1) {
+  const count = Math.max(1, Number.isFinite(clickCount) ? Number(clickCount) : 1)
+  await dispatchDebuggerMouseEvent(tabId, "mouseMoved", { x, y })
+  for (let i = 1; i <= count; i++) {
+    await dispatchDebuggerMouseEvent(tabId, "mousePressed", { x, y, button, clickCount: i })
+    await dispatchDebuggerMouseEvent(tabId, "mouseReleased", { x, y, button, clickCount: i })
+  }
+  return { x: clampMouseCoordinate(x), y: clampMouseCoordinate(y), button: normalizeMouseButton(button), clickCount: count }
+}
+
+async function dispatchCoordinateDrag(tabId, fromX, fromY, toX, toY, steps = 12) {
+  const startX = clampMouseCoordinate(fromX)
+  const startY = clampMouseCoordinate(fromY)
+  const endX = clampMouseCoordinate(toX)
+  const endY = clampMouseCoordinate(toY)
+  const totalSteps = Math.max(1, Number.isFinite(steps) ? Math.floor(steps) : 12)
+
+  await dispatchDebuggerMouseEvent(tabId, "mouseMoved", { x: startX, y: startY })
+  await dispatchDebuggerMouseEvent(tabId, "mousePressed", { x: startX, y: startY, button: "left", clickCount: 1 })
+  for (let i = 1; i <= totalSteps; i++) {
+    const progress = i / totalSteps
+    const x = startX + (endX - startX) * progress
+    const y = startY + (endY - startY) * progress
+    await dispatchDebuggerMouseEvent(tabId, "mouseMoved", { x, y, button: "left", buttons: mouseButtonMask("left") })
+  }
+  await dispatchDebuggerMouseEvent(tabId, "mouseReleased", { x: endX, y: endY, button: "left", clickCount: 1 })
+  return { fromX: startX, fromY: startY, toX: endX, toY: endY, steps: totalSteps }
 }
 
 async function runInPage(tabId, command, args) {
@@ -1374,6 +1480,72 @@ async function toolReload({ tabId }) {
   return { tabId: tab.id, content: "Reloaded tab" }
 }
 
+async function toolMouseMove({ x, y, tabId }) {
+  const tab = await getTabById(tabId)
+  const point = await dispatchDebuggerMouseEvent(tab.id, "mouseMoved", { x, y })
+  return { tabId: tab.id, content: { ok: true, ...point } }
+}
+
+async function toolLeftClick({ x, y, clickCount = 1, tabId }) {
+  const tab = await getTabById(tabId)
+  const result = await dispatchCoordinateClick(tab.id, x, y, "left", clickCount)
+  return { tabId: tab.id, content: { ok: true, ...result } }
+}
+
+async function toolRightClick({ x, y, tabId }) {
+  const tab = await getTabById(tabId)
+  const result = await dispatchCoordinateClick(tab.id, x, y, "right", 1)
+  return { tabId: tab.id, content: { ok: true, ...result } }
+}
+
+async function toolMiddleClick({ x, y, tabId }) {
+  const tab = await getTabById(tabId)
+  const result = await dispatchCoordinateClick(tab.id, x, y, "middle", 1)
+  return { tabId: tab.id, content: { ok: true, ...result } }
+}
+
+async function toolDoubleClick({ x, y, tabId }) {
+  const tab = await getTabById(tabId)
+  const result = await dispatchCoordinateClick(tab.id, x, y, "left", 2)
+  return { tabId: tab.id, content: { ok: true, ...result } }
+}
+
+async function toolTripleClick({ x, y, tabId }) {
+  const tab = await getTabById(tabId)
+  const result = await dispatchCoordinateClick(tab.id, x, y, "left", 3)
+  return { tabId: tab.id, content: { ok: true, ...result } }
+}
+
+async function toolMouseDown({ x, y, button = "left", tabId }) {
+  const tab = await getTabById(tabId)
+  const point = await dispatchDebuggerMouseEvent(tab.id, "mouseMoved", { x, y })
+  const result = await dispatchDebuggerMouseEvent(tab.id, "mousePressed", {
+    x: point.x,
+    y: point.y,
+    button,
+    clickCount: 1,
+  })
+  return { tabId: tab.id, content: { ok: true, ...result } }
+}
+
+async function toolMouseUp({ x, y, button = "left", tabId }) {
+  const tab = await getTabById(tabId)
+  const point = await dispatchDebuggerMouseEvent(tab.id, "mouseMoved", { x, y })
+  const result = await dispatchDebuggerMouseEvent(tab.id, "mouseReleased", {
+    x: point.x,
+    y: point.y,
+    button,
+    clickCount: 1,
+  })
+  return { tabId: tab.id, content: { ok: true, ...result } }
+}
+
+async function toolLeftClickDrag({ fromX, fromY, toX, toY, steps = 12, tabId }) {
+  const tab = await getTabById(tabId)
+  const result = await dispatchCoordinateDrag(tab.id, fromX, fromY, toX, toY, steps)
+  return { tabId: tab.id, content: { ok: true, ...result } }
+}
+
 async function toolClick({ selector, tabId, index = 0, timeoutMs, pollMs }) {
   if (!selector) throw new Error("Selector is required")
   const tab = await getTabById(tabId)
@@ -1426,6 +1598,41 @@ async function toolKey({ key, selector, tabId, index = 0, timeoutMs, pollMs }) {
 
   await dispatchDebuggerKey(tab.id, key)
   return { tabId: tab.id, content: `Pressed ${key}` }
+}
+
+async function toolKeyDown({ key, tabId }) {
+  if (!key) throw new Error("key is required")
+  const tab = await getTabById(tabId)
+  const state = await ensureDebuggerAttached(tab.id)
+  if (!state.attached) throw new Error(state.unavailableReason || "Debugger is not available for keyboard input.")
+  const descriptor = parseKeyChord(key)
+  await chrome.debugger.sendCommand({ tabId: tab.id }, "Input.dispatchKeyEvent", {
+    type: descriptor.text ? "keyDown" : "rawKeyDown",
+    key: descriptor.key,
+    code: descriptor.code,
+    windowsVirtualKeyCode: descriptor.keyCode,
+    nativeVirtualKeyCode: descriptor.keyCode,
+    modifiers: descriptor.modifiers,
+    ...(descriptor.text ? { text: descriptor.text, unmodifiedText: descriptor.text } : {}),
+  })
+  return { tabId: tab.id, content: `Key down ${key}` }
+}
+
+async function toolKeyUp({ key, tabId }) {
+  if (!key) throw new Error("key is required")
+  const tab = await getTabById(tabId)
+  const state = await ensureDebuggerAttached(tab.id)
+  if (!state.attached) throw new Error(state.unavailableReason || "Debugger is not available for keyboard input.")
+  const descriptor = parseKeyChord(key)
+  await chrome.debugger.sendCommand({ tabId: tab.id }, "Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: descriptor.key,
+    code: descriptor.code,
+    windowsVirtualKeyCode: descriptor.keyCode,
+    nativeVirtualKeyCode: descriptor.keyCode,
+    modifiers: descriptor.modifiers,
+  })
+  return { tabId: tab.id, content: `Key up ${key}` }
 }
 
 async function toolSelect({ selector, value, label, optionIndex, tabId, index = 0, timeoutMs, pollMs }) {

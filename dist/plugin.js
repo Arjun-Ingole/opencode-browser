@@ -12356,7 +12356,15 @@ function getAgentCapabilities() {
     headless: true,
     tab_claims: false,
     file_uploads: true,
-    downloads: true
+    downloads: true,
+    coordinate_actions: true,
+    pointer_buttons: true,
+    drag: true,
+    geometry: false,
+    frames: false,
+    dialogs: false,
+    network_observability: false,
+    debugger_input: true
   };
 }
 function createJsonLineParser(onMessage) {
@@ -12554,6 +12562,12 @@ function buildAgentHoverScript(selector, indexValue) {
     } catch {}
     return { ok: true };
   `);
+}
+function normalizeMouseButton(button) {
+  const raw = typeof button === "string" ? button.trim().toLowerCase() : "";
+  if (raw === "right" || raw === "middle")
+    return raw;
+  return "left";
 }
 function buildAgentSelectScript(selector, indexValue, value, label, optionIndex) {
   const payload = {
@@ -12841,6 +12855,50 @@ function createAgentBackend(sessionId) {
     await agentCommand("tab_switch", { index: tabId });
     return await action();
   }
+  async function moveMouse(x, y) {
+    const point = { x: Number(x), y: Number(y) };
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+      throw new Error("Mouse coordinates must be finite numbers");
+    }
+    await agentCommand("mousemove", point);
+    return point;
+  }
+  async function mouseDown(button) {
+    const normalized = normalizeMouseButton(button);
+    await agentCommand("mousedown", { button: normalized });
+    return normalized;
+  }
+  async function mouseUp(button) {
+    const normalized = normalizeMouseButton(button);
+    await agentCommand("mouseup", { button: normalized });
+    return normalized;
+  }
+  async function coordinateClick(x, y, button, clickCount) {
+    const point = await moveMouse(x, y);
+    const count = Math.max(1, Number.isFinite(clickCount) ? Math.floor(clickCount) : 1);
+    const normalized = normalizeMouseButton(button);
+    for (let i = 0;i < count; i++) {
+      await mouseDown(normalized);
+      await mouseUp(normalized);
+    }
+  }
+  async function coordinateDrag(fromX, fromY, toX, toY, steps) {
+    const start = await moveMouse(fromX, fromY);
+    const end = { x: Number(toX), y: Number(toY) };
+    if (!Number.isFinite(end.x) || !Number.isFinite(end.y)) {
+      throw new Error("Mouse coordinates must be finite numbers");
+    }
+    const totalSteps = Math.max(1, Number.isFinite(steps) ? Math.floor(steps) : 12);
+    await mouseDown("left");
+    for (let i = 1;i <= totalSteps; i++) {
+      const progress = i / totalSteps;
+      const x = start.x + (end.x - start.x) * progress;
+      const y = start.y + (end.y - start.y) * progress;
+      await moveMouse(x, y);
+    }
+    await mouseUp("left");
+    return { fromX: start.x, fromY: start.y, toX: end.x, toY: end.y, steps: totalSteps };
+  }
   async function agentEvaluate(script) {
     const data = await agentCommand("evaluate", { script });
     return data?.result;
@@ -12999,6 +13057,63 @@ function createAgentBackend(sessionId) {
           return { content: "Reloaded tab" };
         });
       }
+      case "mouse_move": {
+        return await withTab(args.tabId, async () => {
+          const point = await moveMouse(args.x, args.y);
+          return { content: { ok: true, ...point } };
+        });
+      }
+      case "left_click": {
+        return await withTab(args.tabId, async () => {
+          const count = Number.isFinite(args.clickCount) ? args.clickCount : 1;
+          await coordinateClick(args.x, args.y, "left", count);
+          return { content: { ok: true, x: Number(args.x), y: Number(args.y), button: "left", clickCount: Math.max(1, Math.floor(count)) } };
+        });
+      }
+      case "right_click": {
+        return await withTab(args.tabId, async () => {
+          await coordinateClick(args.x, args.y, "right", 1);
+          return { content: { ok: true, x: Number(args.x), y: Number(args.y), button: "right", clickCount: 1 } };
+        });
+      }
+      case "middle_click": {
+        return await withTab(args.tabId, async () => {
+          await coordinateClick(args.x, args.y, "middle", 1);
+          return { content: { ok: true, x: Number(args.x), y: Number(args.y), button: "middle", clickCount: 1 } };
+        });
+      }
+      case "double_click": {
+        return await withTab(args.tabId, async () => {
+          await coordinateClick(args.x, args.y, "left", 2);
+          return { content: { ok: true, x: Number(args.x), y: Number(args.y), button: "left", clickCount: 2 } };
+        });
+      }
+      case "triple_click": {
+        return await withTab(args.tabId, async () => {
+          await coordinateClick(args.x, args.y, "left", 3);
+          return { content: { ok: true, x: Number(args.x), y: Number(args.y), button: "left", clickCount: 3 } };
+        });
+      }
+      case "mouse_down": {
+        return await withTab(args.tabId, async () => {
+          const point = await moveMouse(args.x, args.y);
+          const button = await mouseDown(args.button);
+          return { content: { ok: true, ...point, button } };
+        });
+      }
+      case "mouse_up": {
+        return await withTab(args.tabId, async () => {
+          const point = await moveMouse(args.x, args.y);
+          const button = await mouseUp(args.button);
+          return { content: { ok: true, ...point, button } };
+        });
+      }
+      case "left_click_drag": {
+        return await withTab(args.tabId, async () => {
+          const result = await coordinateDrag(args.fromX, args.fromY, args.toX, args.toY, args.steps);
+          return { content: { ok: true, ...result } };
+        });
+      }
       case "download": {
         return await withTab(args.tabId, async () => {
           const url2 = typeof args.url === "string" ? args.url.trim() : "";
@@ -13128,6 +13243,22 @@ function createAgentBackend(sessionId) {
             await agentCommand("press", { key: keyValue });
           }
           return { content: `Pressed ${keyValue}` };
+        });
+      }
+      case "key_down": {
+        return await withTab(args.tabId, async () => {
+          if (!args.key)
+            throw new Error("key is required");
+          await agentCommand("keydown", { key: String(args.key) });
+          return { content: `Key down ${args.key}` };
+        });
+      }
+      case "key_up": {
+        return await withTab(args.tabId, async () => {
+          if (!args.key)
+            throw new Error("key is required");
+          await agentCommand("keyup", { key: String(args.key) });
+          return { content: `Key up ${args.key}` };
         });
       }
       case "select": {
@@ -13431,7 +13562,15 @@ function getNativeCapabilities() {
     headless: false,
     tab_claims: true,
     file_uploads: "limited",
-    downloads: true
+    downloads: true,
+    coordinate_actions: true,
+    pointer_buttons: true,
+    drag: true,
+    geometry: false,
+    frames: false,
+    dialogs: false,
+    network_observability: false,
+    debugger_input: true
   };
 }
 function getFallbackBackendMessage(backend) {
@@ -13891,6 +14030,120 @@ var plugin = async () => {
           return toolResultText(data, "Reloaded tab");
         }
       }),
+      browser_mouse_move: tool({
+        description: "Move the mouse cursor to viewport coordinates.",
+        args: {
+          x: schema.number(),
+          y: schema.number(),
+          tabId: schema.number().optional()
+        },
+        async execute({ x, y, tabId }) {
+          const data = await toolRequest("mouse_move", { x, y, tabId });
+          return toolResultText(data, `Moved mouse to (${x}, ${y})`);
+        }
+      }),
+      browser_left_click: tool({
+        description: "Left click at viewport coordinates.",
+        args: {
+          x: schema.number(),
+          y: schema.number(),
+          clickCount: schema.number().optional(),
+          tabId: schema.number().optional()
+        },
+        async execute({ x, y, clickCount, tabId }) {
+          const data = await toolRequest("left_click", { x, y, clickCount, tabId });
+          return toolResultText(data, `Left clicked at (${x}, ${y})`);
+        }
+      }),
+      browser_right_click: tool({
+        description: "Right click at viewport coordinates.",
+        args: {
+          x: schema.number(),
+          y: schema.number(),
+          tabId: schema.number().optional()
+        },
+        async execute({ x, y, tabId }) {
+          const data = await toolRequest("right_click", { x, y, tabId });
+          return toolResultText(data, `Right clicked at (${x}, ${y})`);
+        }
+      }),
+      browser_middle_click: tool({
+        description: "Middle click at viewport coordinates.",
+        args: {
+          x: schema.number(),
+          y: schema.number(),
+          tabId: schema.number().optional()
+        },
+        async execute({ x, y, tabId }) {
+          const data = await toolRequest("middle_click", { x, y, tabId });
+          return toolResultText(data, `Middle clicked at (${x}, ${y})`);
+        }
+      }),
+      browser_double_click: tool({
+        description: "Double click at viewport coordinates.",
+        args: {
+          x: schema.number(),
+          y: schema.number(),
+          tabId: schema.number().optional()
+        },
+        async execute({ x, y, tabId }) {
+          const data = await toolRequest("double_click", { x, y, tabId });
+          return toolResultText(data, `Double clicked at (${x}, ${y})`);
+        }
+      }),
+      browser_triple_click: tool({
+        description: "Triple click at viewport coordinates.",
+        args: {
+          x: schema.number(),
+          y: schema.number(),
+          tabId: schema.number().optional()
+        },
+        async execute({ x, y, tabId }) {
+          const data = await toolRequest("triple_click", { x, y, tabId });
+          return toolResultText(data, `Triple clicked at (${x}, ${y})`);
+        }
+      }),
+      browser_mouse_down: tool({
+        description: "Press and hold a mouse button at viewport coordinates.",
+        args: {
+          x: schema.number(),
+          y: schema.number(),
+          button: schema.string().optional(),
+          tabId: schema.number().optional()
+        },
+        async execute({ x, y, button, tabId }) {
+          const data = await toolRequest("mouse_down", { x, y, button, tabId });
+          return toolResultText(data, `Mouse down at (${x}, ${y})`);
+        }
+      }),
+      browser_mouse_up: tool({
+        description: "Release a mouse button at viewport coordinates.",
+        args: {
+          x: schema.number(),
+          y: schema.number(),
+          button: schema.string().optional(),
+          tabId: schema.number().optional()
+        },
+        async execute({ x, y, button, tabId }) {
+          const data = await toolRequest("mouse_up", { x, y, button, tabId });
+          return toolResultText(data, `Mouse up at (${x}, ${y})`);
+        }
+      }),
+      browser_left_click_drag: tool({
+        description: "Drag from one viewport coordinate to another using the left mouse button.",
+        args: {
+          fromX: schema.number(),
+          fromY: schema.number(),
+          toX: schema.number(),
+          toY: schema.number(),
+          steps: schema.number().optional(),
+          tabId: schema.number().optional()
+        },
+        async execute({ fromX, fromY, toX, toY, steps, tabId }) {
+          const data = await toolRequest("left_click_drag", { fromX, fromY, toX, toY, steps, tabId });
+          return toolResultText(data, `Dragged from (${fromX}, ${fromY}) to (${toX}, ${toY})`);
+        }
+      }),
       browser_click: tool({
         description: "Click an element on the page using a CSS selector",
         args: {
@@ -13962,6 +14215,28 @@ var plugin = async () => {
         async execute({ key, selector, index, tabId, timeoutMs, pollMs }) {
           const data = await toolRequest("key", { key, selector, index, tabId, timeoutMs, pollMs });
           return toolResultText(data, `Pressed ${key}`);
+        }
+      }),
+      browser_key_down: tool({
+        description: "Press and hold a keyboard key.",
+        args: {
+          key: schema.string(),
+          tabId: schema.number().optional()
+        },
+        async execute({ key, tabId }) {
+          const data = await toolRequest("key_down", { key, tabId });
+          return toolResultText(data, `Key down ${key}`);
+        }
+      }),
+      browser_key_up: tool({
+        description: "Release a held keyboard key.",
+        args: {
+          key: schema.string(),
+          tabId: schema.number().optional()
+        },
+        async execute({ key, tabId }) {
+          const data = await toolRequest("key_up", { key, tabId });
+          return toolResultText(data, `Key up ${key}`);
         }
       }),
       browser_select: tool({
