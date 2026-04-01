@@ -12362,8 +12362,8 @@ function getAgentCapabilities() {
     drag: true,
     geometry: true,
     frames: true,
-    dialogs: false,
-    network_observability: false,
+    dialogs: true,
+    network_observability: true,
     debugger_input: true
   };
 }
@@ -13599,6 +13599,32 @@ function createAgentBackend(sessionId) {
           };
         });
       }
+      case "network_requests": {
+        return await withTab(args.tabId, async () => {
+          const data = await agentCommand("requests", {
+            clear: !!args.clear,
+            filter: typeof args.filter === "string" ? args.filter : undefined
+          });
+          return { content: JSON.stringify(data?.requests ?? [], null, 2) };
+        });
+      }
+      case "dialog_accept": {
+        return await withTab(args.tabId, async () => {
+          const data = await agentCommand("dialog", {
+            response: "accept",
+            promptText: typeof args.text === "string" ? args.text : undefined
+          });
+          return { content: JSON.stringify({ ok: true, ...data }, null, 2) };
+        });
+      }
+      case "dialog_dismiss": {
+        return await withTab(args.tabId, async () => {
+          const data = await agentCommand("dialog", {
+            response: "dismiss"
+          });
+          return { content: JSON.stringify({ ok: true, ...data }, null, 2) };
+        });
+      }
       default:
         throw new Error(`Unsupported tool for agent backend: ${tool3}`);
     }
@@ -13820,8 +13846,8 @@ function getNativeCapabilities() {
     drag: true,
     geometry: true,
     frames: true,
-    dialogs: false,
-    network_observability: false,
+    dialogs: true,
+    network_observability: true,
     debugger_input: true
   };
 }
@@ -14802,6 +14828,39 @@ var plugin = async () => {
         async execute({ tabId, clear }) {
           const data = await toolRequest("errors", { tabId, clear });
           return toolResultText(data, "[]");
+        }
+      }),
+      browser_network_requests: tool({
+        description: "Read recently observed network requests for the page.",
+        args: {
+          tabId: schema.number().optional(),
+          clear: schema.boolean().optional(),
+          filter: schema.string().optional()
+        },
+        async execute({ tabId, clear, filter }) {
+          const data = await toolRequest("network_requests", { tabId, clear, filter });
+          return toolResultText(data, "[]");
+        }
+      }),
+      browser_dialog_accept: tool({
+        description: "Accept the active JavaScript dialog.",
+        args: {
+          tabId: schema.number().optional(),
+          text: schema.string().optional()
+        },
+        async execute({ tabId, text }) {
+          const data = await toolRequest("dialog_accept", { tabId, text });
+          return toolResultText(data, "Dialog accept failed");
+        }
+      }),
+      browser_dialog_dismiss: tool({
+        description: "Dismiss the active JavaScript dialog.",
+        args: {
+          tabId: schema.number().optional()
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("dialog_dismiss", { tabId });
+          return toolResultText(data, "Dialog dismiss failed");
         }
       })
     }

@@ -261,8 +261,8 @@ function getNativeCapabilities(): Record<string, boolean | string> {
     drag: true,
     geometry: true,
     frames: true,
-    dialogs: false,
-    network_observability: false,
+    dialogs: true,
+    network_observability: true,
     debugger_input: true,
   };
 }
@@ -1347,6 +1347,42 @@ const plugin: Plugin = async () => {
         async execute({ tabId, clear }) {
           const data = await toolRequest("errors", { tabId, clear });
           return toolResultText(data, "[]");
+        },
+      }),
+
+      browser_network_requests: tool({
+        description: "Read recently observed network requests for the page.",
+        args: {
+          tabId: schema.number().optional(),
+          clear: schema.boolean().optional(),
+          filter: schema.string().optional(),
+        },
+        async execute({ tabId, clear, filter }) {
+          const data = await toolRequest("network_requests", { tabId, clear, filter });
+          return toolResultText(data, "[]");
+        },
+      }),
+
+      browser_dialog_accept: tool({
+        description: "Accept the active JavaScript dialog.",
+        args: {
+          tabId: schema.number().optional(),
+          text: schema.string().optional(),
+        },
+        async execute({ tabId, text }) {
+          const data = await toolRequest("dialog_accept", { tabId, text });
+          return toolResultText(data, "Dialog accept failed");
+        },
+      }),
+
+      browser_dialog_dismiss: tool({
+        description: "Dismiss the active JavaScript dialog.",
+        args: {
+          tabId: schema.number().optional(),
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("dialog_dismiss", { tabId });
+          return toolResultText(data, "Dialog dismiss failed");
         },
       }),
     },

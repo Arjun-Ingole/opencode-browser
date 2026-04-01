@@ -39,8 +39,8 @@ function getAgentCapabilities(): Record<string, boolean | string> {
     drag: true,
     geometry: true,
     frames: true,
-    dialogs: false,
-    network_observability: false,
+    dialogs: true,
+    network_observability: true,
     debugger_input: true,
   };
 }
@@ -1386,6 +1386,32 @@ export function createAgentBackend(sessionId: string): AgentBackend {
           return {
             content: JSON.stringify({ ok: true, requestedState: state, readyState: data?.state ?? state }, null, 2),
           };
+        });
+      }
+      case "network_requests": {
+        return await withTab(args.tabId, async () => {
+          const data = await agentCommand("requests", {
+            clear: !!args.clear,
+            filter: typeof args.filter === "string" ? args.filter : undefined,
+          });
+          return { content: JSON.stringify(data?.requests ?? [], null, 2) };
+        });
+      }
+      case "dialog_accept": {
+        return await withTab(args.tabId, async () => {
+          const data = await agentCommand("dialog", {
+            response: "accept",
+            promptText: typeof args.text === "string" ? args.text : undefined,
+          });
+          return { content: JSON.stringify({ ok: true, ...data }, null, 2) };
+        });
+      }
+      case "dialog_dismiss": {
+        return await withTab(args.tabId, async () => {
+          const data = await agentCommand("dialog", {
+            response: "dismiss",
+          });
+          return { content: JSON.stringify({ ok: true, ...data }, null, 2) };
         });
       }
       default:

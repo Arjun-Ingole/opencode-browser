@@ -123,12 +123,21 @@ async function ensureDebuggerAttached(tabId) {
 
   if (debuggerState.has(tabId)) return debuggerState.get(tabId)
 
-  const state = { attached: false, consoleMessages: [], pageErrors: [] }
+  const state = {
+    attached: false,
+    consoleMessages: [],
+    pageErrors: [],
+    networkRequests: [],
+    requestsById: {},
+    pendingDialog: null,
+  }
   debuggerState.set(tabId, state)
 
   try {
     await chrome.debugger.attach({ tabId }, "1.3")
     await chrome.debugger.sendCommand({ tabId }, "Runtime.enable")
+    await chrome.debugger.sendCommand({ tabId }, "Page.enable")
+    await chrome.debugger.sendCommand({ tabId }, "Network.enable")
     state.attached = true
   } catch (e) {
     console.warn("[OpenCode] Failed to attach debugger:", e.message || e)
@@ -167,6 +176,53 @@ if (chrome.debugger?.onEvent) {
         stack: params.exceptionDetails.exception?.description,
         timestamp: Date.now(),
       })
+    }
+
+    if (method === "Page.javascriptDialogOpening") {
+      state.pendingDialog = {
+        type: params.type,
+        message: params.message,
+        defaultPrompt: params.defaultPrompt,
+        url: params.url,
+        timestamp: Date.now(),
+      }
+    }
+
+    if (method === "Page.javascriptDialogClosed") {
+      state.pendingDialog = null
+    }
+
+    if (method === "Network.requestWillBeSent") {
+      const request = {
+        id: params.requestId,
+        url: params.request?.url,
+        method: params.request?.method,
+        type: params.type,
+        status: null,
+        timestamp: Date.now(),
+      }
+      state.requestsById[params.requestId] = request
+      if (state.networkRequests.length >= MAX_LOG_ENTRIES) {
+        const removed = state.networkRequests.shift()
+        if (removed?.id) delete state.requestsById[removed.id]
+      }
+      state.networkRequests.push(request)
+    }
+
+    if (method === "Network.responseReceived") {
+      const request = state.requestsById[params.requestId]
+      if (request) {
+        request.status = params.response?.status ?? null
+        request.mimeType = params.response?.mimeType
+      }
+    }
+
+    if (method === "Network.loadingFailed") {
+      const request = state.requestsById[params.requestId]
+      if (request) {
+        request.failed = true
+        request.errorText = params.errorText
+      }
     }
   })
 }
@@ -338,6 +394,9 @@ async function executeTool(toolName, args) {
     highlight: toolHighlight,
     console: toolConsole,
     errors: toolErrors,
+    network_requests: toolNetworkRequests,
+    dialog_accept: toolDialogAccept,
+    dialog_dismiss: toolDialogDismiss,
   }
 
   const fn = tools[toolName]
@@ -2342,6 +2401,76 @@ async function toolErrors({ tabId, clear = false } = {}) {
   return {
     tabId: tab.id,
     content: JSON.stringify(errors, null, 2),
+  }
+}
+
+async function toolNetworkRequests({ tabId, clear = false, filter } = {}) {
+  const tab = await getTabById(tabId)
+  const state = await ensureDebuggerAttached(tab.id)
+
+  if (!state.attached) {
+    return {
+      tabId: tab.id,
+      content: JSON.stringify({
+        error: state.unavailableReason || "Debugger not attached. DevTools may be open or another debugger is active.",
+        requests: [],
+      }),
+    }
+  }
+
+  let requests = [...state.networkRequests]
+  if (filter && typeof filter === "string") {
+    const needle = filter.toLowerCase()
+    requests = requests.filter((request) => String(request.url || "").toLowerCase().includes(needle))
+  }
+
+  if (clear) {
+    state.networkRequests = []
+    state.requestsById = {}
+  }
+
+  return {
+    tabId: tab.id,
+    content: JSON.stringify(requests, null, 2),
+  }
+}
+
+async function toolDialogAccept({ tabId, text } = {}) {
+  const tab = await getTabById(tabId)
+  const state = await ensureDebuggerAttached(tab.id)
+
+  if (!state.attached) {
+    throw new Error(state.unavailableReason || "Debugger not attached. DevTools may be open or another debugger is active.")
+  }
+
+  await chrome.debugger.sendCommand({ tabId: tab.id }, "Page.handleJavaScriptDialog", {
+    accept: true,
+    promptText: typeof text === "string" ? text : undefined,
+  })
+  const dialog = state.pendingDialog
+  state.pendingDialog = null
+  return {
+    tabId: tab.id,
+    content: JSON.stringify({ ok: true, action: "accept", dialog }, null, 2),
+  }
+}
+
+async function toolDialogDismiss({ tabId } = {}) {
+  const tab = await getTabById(tabId)
+  const state = await ensureDebuggerAttached(tab.id)
+
+  if (!state.attached) {
+    throw new Error(state.unavailableReason || "Debugger not attached. DevTools may be open or another debugger is active.")
+  }
+
+  await chrome.debugger.sendCommand({ tabId: tab.id }, "Page.handleJavaScriptDialog", {
+    accept: false,
+  })
+  const dialog = state.pendingDialog
+  state.pendingDialog = null
+  return {
+    tabId: tab.id,
+    content: JSON.stringify({ ok: true, action: "dismiss", dialog }, null, 2),
   }
 }
 
