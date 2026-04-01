@@ -38,7 +38,7 @@ function getAgentCapabilities(): Record<string, boolean | string> {
     pointer_buttons: true,
     drag: true,
     geometry: true,
-    frames: false,
+    frames: true,
     dialogs: false,
     network_observability: false,
     debugger_input: true,
@@ -486,6 +486,36 @@ function buildAgentNthBoundingBoxScript(selector: string, indexValue: number): s
   `);
 }
 
+function buildAgentFramesScript(): string {
+  return buildEvalScript(`
+    const items = [{ index: 0, name: "main", url: location.href, sameOrigin: true }];
+    const elements = Array.from(document.querySelectorAll("iframe, frame"));
+    elements.forEach((frame, idx) => {
+      let sameOrigin = false;
+      let url = typeof frame.getAttribute === "function" ? (frame.getAttribute("src") || "") : "";
+      try {
+        const frameLocation = frame.contentWindow?.location?.href;
+        if (frameLocation) {
+          sameOrigin = true;
+          url = frameLocation;
+        }
+      } catch {
+        // ignore cross-origin access failures
+      }
+      items.push({
+        index: idx + 1,
+        name:
+          (typeof frame.getAttribute === "function" ? (frame.getAttribute("name") || "") : "") ||
+          String(frame.id || "") ||
+          \`frame-\${idx + 1}\`,
+        url,
+        sameOrigin,
+      });
+    });
+    return { ok: true, value: items };
+  `);
+}
+
 function buildAgentNthValueScript(selector: string, indexValue: number): string {
   const payload = { selector, index: indexValue };
   return buildEvalScript(`
@@ -914,6 +944,21 @@ export function createAgentBackend(sessionId: string): AgentBackend {
         }));
         return { content: JSON.stringify(mapped, null, 2) };
       }
+      case "get_active_tab": {
+        const data = await agentCommand("tab_list", {});
+        const tabs = Array.isArray(data?.tabs) ? data.tabs : [];
+        const activeIndex = Number.isFinite(data?.active) ? data.active : tabs.find((tab: any) => tab?.active)?.index;
+        const activeTab = tabs.find((tab: any) => tab?.index === activeIndex || tab?.active);
+        if (!activeTab) throw new Error("No active tab found");
+        return {
+          content: {
+            tabId: activeTab.index,
+            url: activeTab.url,
+            title: activeTab.title,
+            windowId: activeTab.windowId ?? 0,
+          },
+        };
+      }
       case "list_downloads": {
         return { content: JSON.stringify({ downloads }, null, 2) };
       }
@@ -950,6 +995,24 @@ export function createAgentBackend(sessionId: string): AgentBackend {
           if (!args.url) throw new Error("URL is required");
           await agentCommand("navigate", { url: args.url });
           return { content: `Navigated to ${args.url}` };
+        });
+      }
+      case "get_url": {
+        return await withTab(args.tabId, async () => {
+          const data = await agentCommand("url", {});
+          return { content: typeof data?.url === "string" ? data.url : "" };
+        });
+      }
+      case "get_title": {
+        return await withTab(args.tabId, async () => {
+          const data = await agentCommand("title", {});
+          return { content: typeof data?.title === "string" ? data.title : "" };
+        });
+      }
+      case "list_frames": {
+        return await withTab(args.tabId, async () => {
+          const result = ensureEvalResult(await agentEvaluate(buildAgentFramesScript()), "Frame listing failed");
+          return { content: JSON.stringify(result, null, 2) };
         });
       }
       case "back": {
@@ -1302,6 +1365,27 @@ export function createAgentBackend(sessionId: string): AgentBackend {
           const ms = Number.isFinite(args.ms) ? args.ms : 1000;
           await agentCommand("wait", { timeout: ms });
           return { content: `Waited ${ms}ms` };
+        });
+      }
+      case "wait_for_url": {
+        return await withTab(args.tabId, async () => {
+          if (!args.pattern) throw new Error("pattern is required");
+          const timeout = Number.isFinite(args.timeoutMs) ? args.timeoutMs : undefined;
+          const data = await agentCommand("waitforurl", { url: String(args.pattern), timeout });
+          return { content: JSON.stringify({ ok: true, url: data?.url ?? "", pattern: String(args.pattern) }, null, 2) };
+        });
+      }
+      case "wait_for_load_state": {
+        return await withTab(args.tabId, async () => {
+          const state = typeof args.state === "string" && args.state ? args.state : "load";
+          if (!["load", "domcontentloaded", "networkidle"].includes(state)) {
+            throw new Error(`Unsupported load state: ${state}`);
+          }
+          const timeout = Number.isFinite(args.timeoutMs) ? args.timeoutMs : undefined;
+          const data = await agentCommand("waitforloadstate", { state, timeout });
+          return {
+            content: JSON.stringify({ ok: true, requestedState: state, readyState: data?.state ?? state }, null, 2),
+          };
         });
       }
       default:

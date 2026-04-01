@@ -260,7 +260,7 @@ function getNativeCapabilities(): Record<string, boolean | string> {
     pointer_buttons: true,
     drag: true,
     geometry: true,
-    frames: false,
+    frames: true,
     dialogs: false,
     network_observability: false,
     debugger_input: true,
@@ -673,6 +673,15 @@ const plugin: Plugin = async () => {
         },
       }),
 
+      browser_get_active_tab: tool({
+        description: "Return the active browser tab.",
+        args: {},
+        async execute() {
+          const data = await toolRequest("get_active_tab", {});
+          return toolResultText(data, "Active tab lookup failed");
+        },
+      }),
+
       browser_list_claims: tool({
         description: "List tab ownership claims",
         args: {},
@@ -748,6 +757,39 @@ const plugin: Plugin = async () => {
         async execute({ url, tabId }) {
           const data = await toolRequest("navigate", { url, tabId });
           return toolResultText(data, `Navigated to ${url}`);
+        },
+      }),
+
+      browser_get_url: tool({
+        description: "Return the current page URL.",
+        args: {
+          tabId: schema.number().optional(),
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("get_url", { tabId });
+          return toolResultText(data, "URL lookup failed");
+        },
+      }),
+
+      browser_get_title: tool({
+        description: "Return the current page title.",
+        args: {
+          tabId: schema.number().optional(),
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("get_title", { tabId });
+          return toolResultText(data, "Title lookup failed");
+        },
+      }),
+
+      browser_list_frames: tool({
+        description: "List the main frame and visible iframe/frame elements for the current page.",
+        args: {
+          tabId: schema.number().optional(),
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("list_frames", { tabId });
+          return toolResultText(data, "Frame listing failed");
         },
       }),
 
@@ -1102,6 +1144,34 @@ const plugin: Plugin = async () => {
         async execute({ ms, tabId }) {
           const data = await toolRequest("wait", { ms, tabId });
           return toolResultText(data, "Waited");
+        },
+      }),
+
+      browser_wait_for_url: tool({
+        description: "Wait until the page URL matches a pattern. `*` acts as a wildcard.",
+        args: {
+          pattern: schema.string(),
+          tabId: schema.number().optional(),
+          timeoutMs: schema.number().optional(),
+          pollMs: schema.number().optional(),
+        },
+        async execute({ pattern, tabId, timeoutMs, pollMs }) {
+          const data = await toolRequest("wait_for_url", { pattern, tabId, timeoutMs, pollMs });
+          return toolResultText(data, "URL wait failed");
+        },
+      }),
+
+      browser_wait_for_load_state: tool({
+        description: "Wait for the page to reach a load state.",
+        args: {
+          state: schema.string().optional(),
+          tabId: schema.number().optional(),
+          timeoutMs: schema.number().optional(),
+          pollMs: schema.number().optional(),
+        },
+        async execute({ state, tabId, timeoutMs, pollMs }) {
+          const data = await toolRequest("wait_for_load_state", { state, tabId, timeoutMs, pollMs });
+          return toolResultText(data, "Load-state wait failed");
         },
       }),
 

@@ -299,6 +299,9 @@ async function executeTool(toolName, args) {
     open_tab: toolOpenTab,
     set_active_tab: toolSetActiveTab,
     close_tab: toolCloseTab,
+    get_url: toolGetUrl,
+    get_title: toolGetTitle,
+    list_frames: toolListFrames,
     navigate: toolNavigate,
     back: toolBack,
     forward: toolForward,
@@ -327,6 +330,8 @@ async function executeTool(toolName, args) {
     query: toolQuery,
     scroll: toolScroll,
     wait: toolWait,
+    wait_for_url: toolWaitForUrl,
+    wait_for_load_state: toolWaitForLoadState,
     download: toolDownload,
     list_downloads: toolListDownloads,
     set_file_input: toolSetFileInput,
@@ -381,6 +386,67 @@ async function waitForTabStatusComplete(tabId, timeoutMs = 10000) {
       finish()
     })
   })
+}
+
+async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[|\\{}()[\]^$+?.]/g, "\\$&")
+}
+
+function urlPatternToRegExp(pattern) {
+  const escaped = escapeRegExp(pattern).replace(/\*/g, ".*")
+  return new RegExp(`^${escaped}$`)
+}
+
+function matchesUrlPattern(url, pattern) {
+  if (!pattern) return false
+  try {
+    return urlPatternToRegExp(pattern).test(String(url || ""))
+  } catch {
+    return false
+  }
+}
+
+async function waitForUrlPattern(tabId, pattern, timeoutMs = 10000, pollMs = 200) {
+  const timeout = Math.max(0, Number.isFinite(timeoutMs) ? timeoutMs : 10000)
+  const poll = Math.max(50, Number.isFinite(pollMs) ? pollMs : 200)
+  const start = Date.now()
+
+  while (true) {
+    const tab = await chrome.tabs.get(tabId)
+    if (matchesUrlPattern(tab?.url, pattern)) return tab
+    if (timeout && Date.now() - start >= timeout) {
+      throw new Error(`Timed out waiting for URL matching ${pattern}`)
+    }
+    await sleep(poll)
+  }
+}
+
+async function waitForDocumentReadyState(tabId, desiredState, timeoutMs = 10000, pollMs = 200) {
+  if (desiredState === "networkidle") {
+    throw new Error("networkidle is not supported on the native backend")
+  }
+
+  const timeout = Math.max(0, Number.isFinite(timeoutMs) ? timeoutMs : 10000)
+  const poll = Math.max(50, Number.isFinite(pollMs) ? pollMs : 200)
+  const start = Date.now()
+
+  while (true) {
+    const result = await runInPage(tabId, "load_state", {})
+    const state = String(result?.value || "")
+    const ready =
+      desiredState === "domcontentloaded"
+        ? state === "interactive" || state === "complete"
+        : state === "complete"
+    if (ready) return state
+    if (timeout && Date.now() - start >= timeout) {
+      throw new Error(`Timed out waiting for load state ${desiredState}`)
+    }
+    await sleep(poll)
+  }
 }
 
 function keyTokenDescriptor(token, modifiers) {
@@ -1336,6 +1402,33 @@ async function pageOps(command, args) {
     return { ok: true, value: getViewportMetadata() }
   }
 
+  if (command === "load_state") {
+    return { ok: true, value: document.readyState }
+  }
+
+  if (command === "frames") {
+    const items = [{ index: 0, name: "main", url: location.href, sameOrigin: true }]
+    const elements = Array.from(document.querySelectorAll("iframe, frame"))
+    elements.forEach((frame, idx) => {
+      let sameOrigin = false
+      let url = safeString(frame.getAttribute("src"))
+      try {
+        const frameLocation = frame.contentWindow?.location?.href
+        if (frameLocation) {
+          sameOrigin = true
+          url = frameLocation
+        }
+      } catch {}
+      items.push({
+        index: idx + 1,
+        name: safeString(frame.getAttribute("name")) || safeString(frame.id) || `frame-${idx + 1}`,
+        url,
+        sameOrigin,
+      })
+    })
+    return { ok: true, value: items }
+  }
+
   if (command === "highlight") {
     const duration = Number.isFinite(options.duration) ? options.duration : 3000
     const color = typeof options.color === "string" ? options.color : "#ff0000"
@@ -1487,7 +1580,7 @@ async function pageOps(command, args) {
 
 async function toolGetActiveTab() {
   const tab = await getActiveTab()
-  return { tabId: tab.id, content: { tabId: tab.id, url: tab.url, title: tab.title } }
+  return { tabId: tab.id, content: { tabId: tab.id, url: tab.url, title: tab.title, windowId: tab.windowId } }
 }
 
 async function toolOpenTab({ url, active = true }) {
@@ -1513,6 +1606,23 @@ async function toolCloseTab({ tabId }) {
   if (!Number.isFinite(tabId)) throw new Error("tabId is required")
   await chrome.tabs.remove(tabId)
   return { tabId, content: { tabId, closed: true } }
+}
+
+async function toolGetUrl({ tabId }) {
+  const tab = await getTabById(tabId)
+  return { tabId: tab.id, content: tab.url || "" }
+}
+
+async function toolGetTitle({ tabId }) {
+  const tab = await getTabById(tabId)
+  return { tabId: tab.id, content: tab.title || "" }
+}
+
+async function toolListFrames({ tabId }) {
+  const tab = await getTabById(tabId)
+  const result = await runInPage(tab.id, "frames", {})
+  if (!result?.ok) throw new Error(result?.error || "Frame listing failed")
+  return { tabId: tab.id, content: JSON.stringify(result.value || [], null, 2) }
 }
 
 async function toolNavigate({ url, tabId }) {
@@ -1992,6 +2102,29 @@ async function toolScroll({ x = 0, y = 0, selector, tabId, timeoutMs, pollMs }) 
 async function toolWait({ ms = 1000, tabId }) {
   await new Promise((resolve) => setTimeout(resolve, ms))
   return { tabId, content: `Waited ${ms}ms` }
+}
+
+async function toolWaitForUrl({ pattern, tabId, timeoutMs, pollMs }) {
+  if (!pattern) throw new Error("pattern is required")
+  const tab = await getTabById(tabId)
+  const matched = await waitForUrlPattern(tab.id, String(pattern), timeoutMs, pollMs)
+  return {
+    tabId: tab.id,
+    content: JSON.stringify({ ok: true, url: matched.url || "", pattern: String(pattern) }, null, 2),
+  }
+}
+
+async function toolWaitForLoadState({ state = "load", tabId, timeoutMs, pollMs }) {
+  const targetState = typeof state === "string" && state ? state : "load"
+  if (!["load", "domcontentloaded", "networkidle"].includes(targetState)) {
+    throw new Error(`Unsupported load state: ${targetState}`)
+  }
+  const tab = await getTabById(tabId)
+  const resolvedState = await waitForDocumentReadyState(tab.id, targetState, timeoutMs, pollMs)
+  return {
+    tabId: tab.id,
+    content: JSON.stringify({ ok: true, requestedState: targetState, readyState: resolvedState }, null, 2),
+  }
 }
 
 function clampNumber(value, min, max, fallback) {

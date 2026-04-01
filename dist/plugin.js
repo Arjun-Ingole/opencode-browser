@@ -12361,7 +12361,7 @@ function getAgentCapabilities() {
     pointer_buttons: true,
     drag: true,
     geometry: true,
-    frames: false,
+    frames: true,
     dialogs: false,
     network_observability: false,
     debugger_input: true
@@ -12774,6 +12774,35 @@ function buildAgentNthBoundingBoxScript(selector, indexValue) {
     };
   `);
 }
+function buildAgentFramesScript() {
+  return buildEvalScript(`
+    const items = [{ index: 0, name: "main", url: location.href, sameOrigin: true }];
+    const elements = Array.from(document.querySelectorAll("iframe, frame"));
+    elements.forEach((frame, idx) => {
+      let sameOrigin = false;
+      let url = typeof frame.getAttribute === "function" ? (frame.getAttribute("src") || "") : "";
+      try {
+        const frameLocation = frame.contentWindow?.location?.href;
+        if (frameLocation) {
+          sameOrigin = true;
+          url = frameLocation;
+        }
+      } catch {
+        // ignore cross-origin access failures
+      }
+      items.push({
+        index: idx + 1,
+        name:
+          (typeof frame.getAttribute === "function" ? (frame.getAttribute("name") || "") : "") ||
+          String(frame.id || "") ||
+          \`frame-\${idx + 1}\`,
+        url,
+        sameOrigin,
+      });
+    });
+    return { ok: true, value: items };
+  `);
+}
 function buildAgentNthValueScript(selector, indexValue) {
   const payload = { selector, index: indexValue };
   return buildEvalScript(`
@@ -13120,6 +13149,22 @@ function createAgentBackend(sessionId) {
         }));
         return { content: JSON.stringify(mapped, null, 2) };
       }
+      case "get_active_tab": {
+        const data = await agentCommand("tab_list", {});
+        const tabs = Array.isArray(data?.tabs) ? data.tabs : [];
+        const activeIndex = Number.isFinite(data?.active) ? data.active : tabs.find((tab) => tab?.active)?.index;
+        const activeTab = tabs.find((tab) => tab?.index === activeIndex || tab?.active);
+        if (!activeTab)
+          throw new Error("No active tab found");
+        return {
+          content: {
+            tabId: activeTab.index,
+            url: activeTab.url,
+            title: activeTab.title,
+            windowId: activeTab.windowId ?? 0
+          }
+        };
+      }
       case "list_downloads": {
         return { content: JSON.stringify({ downloads }, null, 2) };
       }
@@ -13160,6 +13205,24 @@ function createAgentBackend(sessionId) {
             throw new Error("URL is required");
           await agentCommand("navigate", { url: args.url });
           return { content: `Navigated to ${args.url}` };
+        });
+      }
+      case "get_url": {
+        return await withTab(args.tabId, async () => {
+          const data = await agentCommand("url", {});
+          return { content: typeof data?.url === "string" ? data.url : "" };
+        });
+      }
+      case "get_title": {
+        return await withTab(args.tabId, async () => {
+          const data = await agentCommand("title", {});
+          return { content: typeof data?.title === "string" ? data.title : "" };
+        });
+      }
+      case "list_frames": {
+        return await withTab(args.tabId, async () => {
+          const result = ensureEvalResult(await agentEvaluate(buildAgentFramesScript()), "Frame listing failed");
+          return { content: JSON.stringify(result, null, 2) };
         });
       }
       case "back": {
@@ -13514,6 +13577,28 @@ function createAgentBackend(sessionId) {
           return { content: `Waited ${ms}ms` };
         });
       }
+      case "wait_for_url": {
+        return await withTab(args.tabId, async () => {
+          if (!args.pattern)
+            throw new Error("pattern is required");
+          const timeout = Number.isFinite(args.timeoutMs) ? args.timeoutMs : undefined;
+          const data = await agentCommand("waitforurl", { url: String(args.pattern), timeout });
+          return { content: JSON.stringify({ ok: true, url: data?.url ?? "", pattern: String(args.pattern) }, null, 2) };
+        });
+      }
+      case "wait_for_load_state": {
+        return await withTab(args.tabId, async () => {
+          const state = typeof args.state === "string" && args.state ? args.state : "load";
+          if (!["load", "domcontentloaded", "networkidle"].includes(state)) {
+            throw new Error(`Unsupported load state: ${state}`);
+          }
+          const timeout = Number.isFinite(args.timeoutMs) ? args.timeoutMs : undefined;
+          const data = await agentCommand("waitforloadstate", { state, timeout });
+          return {
+            content: JSON.stringify({ ok: true, requestedState: state, readyState: data?.state ?? state }, null, 2)
+          };
+        });
+      }
       default:
         throw new Error(`Unsupported tool for agent backend: ${tool3}`);
     }
@@ -13734,7 +13819,7 @@ function getNativeCapabilities() {
     pointer_buttons: true,
     drag: true,
     geometry: true,
-    frames: false,
+    frames: true,
     dialogs: false,
     network_observability: false,
     debugger_input: true
@@ -14096,6 +14181,14 @@ var plugin = async () => {
           return toolResultText(data, "ok");
         }
       }),
+      browser_get_active_tab: tool({
+        description: "Return the active browser tab.",
+        args: {},
+        async execute() {
+          const data = await toolRequest("get_active_tab", {});
+          return toolResultText(data, "Active tab lookup failed");
+        }
+      }),
       browser_list_claims: tool({
         description: "List tab ownership claims",
         args: {},
@@ -14165,6 +14258,36 @@ var plugin = async () => {
         async execute({ url: url2, tabId }) {
           const data = await toolRequest("navigate", { url: url2, tabId });
           return toolResultText(data, `Navigated to ${url2}`);
+        }
+      }),
+      browser_get_url: tool({
+        description: "Return the current page URL.",
+        args: {
+          tabId: schema.number().optional()
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("get_url", { tabId });
+          return toolResultText(data, "URL lookup failed");
+        }
+      }),
+      browser_get_title: tool({
+        description: "Return the current page title.",
+        args: {
+          tabId: schema.number().optional()
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("get_title", { tabId });
+          return toolResultText(data, "Title lookup failed");
+        }
+      }),
+      browser_list_frames: tool({
+        description: "List the main frame and visible iframe/frame elements for the current page.",
+        args: {
+          tabId: schema.number().optional()
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("list_frames", { tabId });
+          return toolResultText(data, "Frame listing failed");
         }
       }),
       browser_back: tool({
@@ -14493,6 +14616,32 @@ var plugin = async () => {
         async execute({ ms, tabId }) {
           const data = await toolRequest("wait", { ms, tabId });
           return toolResultText(data, "Waited");
+        }
+      }),
+      browser_wait_for_url: tool({
+        description: "Wait until the page URL matches a pattern. `*` acts as a wildcard.",
+        args: {
+          pattern: schema.string(),
+          tabId: schema.number().optional(),
+          timeoutMs: schema.number().optional(),
+          pollMs: schema.number().optional()
+        },
+        async execute({ pattern, tabId, timeoutMs, pollMs }) {
+          const data = await toolRequest("wait_for_url", { pattern, tabId, timeoutMs, pollMs });
+          return toolResultText(data, "URL wait failed");
+        }
+      }),
+      browser_wait_for_load_state: tool({
+        description: "Wait for the page to reach a load state.",
+        args: {
+          state: schema.string().optional(),
+          tabId: schema.number().optional(),
+          timeoutMs: schema.number().optional(),
+          pollMs: schema.number().optional()
+        },
+        async execute({ state, tabId, timeoutMs, pollMs }) {
+          const data = await toolRequest("wait_for_load_state", { state, tabId, timeoutMs, pollMs });
+          return toolResultText(data, "Load-state wait failed");
         }
       }),
       browser_query: tool({
