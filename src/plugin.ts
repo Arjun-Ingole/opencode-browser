@@ -8,12 +8,12 @@ import { basename, dirname, isAbsolute, join, resolve } from "path";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PACKAGE_JSON_PATH = join(__dirname, "..", "package.json");
 
 let cachedVersion: string | null = null;
+let cachedName: string | null = null;
 
 function getPackageVersion(): string {
   if (cachedVersion) return cachedVersion;
@@ -30,11 +30,71 @@ function getPackageVersion(): string {
   return cachedVersion;
 }
 
+function getPackageName(): string {
+  if (cachedName) return cachedName;
+  try {
+    const pkg = JSON.parse(readFileSync(PACKAGE_JSON_PATH, "utf8"));
+    if (typeof pkg?.name === "string") {
+      cachedName = pkg.name;
+      return cachedName;
+    }
+  } catch {
+    // ignore
+  }
+  cachedName = "@arjun-ingole/opencode-browser";
+  return cachedName;
+}
+
 const { schema } = tool;
 
 const BASE_DIR = join(homedir(), ".opencode-browser");
+const CONFIG_PATH = join(BASE_DIR, "config.json");
 const SOCKET_PATH = getBrokerSocketPath();
 const LOG_PATH = join(BASE_DIR, "plugin.log");
+const PACKAGE_INSTALL_SPEC = "github:Arjun-Ingole/opencode-browser";
+
+type BackendMode = "auto" | "agent" | "native";
+type BackendSource = "env" | "config" | "default";
+
+type BackendPreference = {
+  mode: BackendMode;
+  source: BackendSource;
+  raw: string | null;
+};
+
+type BrokerResponse =
+  | { type: "response"; id: number; ok: true; data: any }
+  | { type: "response"; id: number; ok: false; error: string };
+
+type BackendProbe = {
+  backend: "agent-browser" | "extension";
+  connected: boolean;
+  capabilities: Record<string, boolean | string>;
+  active_session: string | null;
+  error?: string;
+  setup?: string[];
+  [key: string]: any;
+};
+
+type BackendSelection =
+  | {
+      requestedMode: BackendMode;
+      requestedBy: BackendSource;
+      effectiveBackend: "agent" | "native";
+      selectionReason: string;
+      selected: BackendProbe;
+      alternate: BackendProbe;
+      probes: { agent: BackendProbe; native: BackendProbe };
+    }
+  | {
+      requestedMode: BackendMode;
+      requestedBy: BackendSource;
+      effectiveBackend: null;
+      selectionReason: string;
+      selected: null;
+      alternate: BackendProbe | null;
+      probes: { agent: BackendProbe; native: BackendProbe };
+    };
 
 function getSafePipeName(): string {
   try {
@@ -98,10 +158,6 @@ function buildFileUploadPayload(
   return { name, mimeType: mt, base64 };
 }
 
-type BrokerResponse =
-  | { type: "response"; id: number; ok: true; data: any }
-  | { type: "response"; id: number; ok: false; error: string };
-
 function createJsonLineParser(onMessage: (msg: any) => void): (chunk: Buffer) => void {
   let buffer = "";
   return (chunk: Buffer) => {
@@ -153,23 +209,89 @@ async function sleep(ms: number): Promise<void> {
   return await new Promise((r) => setTimeout(r, ms));
 }
 
-const BACKEND_MODE = (process.env.OPENCODE_BROWSER_BACKEND ?? process.env.OPENCODE_BROWSER_MODE ?? "extension")
-  .toLowerCase()
-  .trim();
-const USE_AGENT_BACKEND = ["agent", "agent-browser", "agentbrowser"].includes(BACKEND_MODE);
+function normalizeBackendMode(raw: string | undefined | null): BackendMode | null {
+  const value = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (!value) return null;
+  if (value === "auto") return "auto";
+  if (["agent", "agent-browser", "agentbrowser"].includes(value)) return "agent";
+  if (["native", "extension", "chrome"].includes(value)) return "native";
+  return null;
+}
+
+function readPersistedConfig(): any | null {
+  try {
+    if (!existsSync(CONFIG_PATH)) return null;
+    return JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function getConfiguredBackendPreference(): BackendPreference {
+  const envRaw = process.env.OPENCODE_BROWSER_BACKEND ?? process.env.OPENCODE_BROWSER_MODE ?? null;
+  const envMode = normalizeBackendMode(envRaw);
+  if (envMode) {
+    return { mode: envMode, source: "env", raw: envRaw };
+  }
+
+  const config = readPersistedConfig();
+  const configRaw =
+    typeof config?.browser?.backend === "string"
+      ? config.browser.backend
+      : typeof config?.backend === "string"
+        ? config.backend
+        : null;
+  const configMode = normalizeBackendMode(configRaw);
+  if (configMode) {
+    return { mode: configMode, source: "config", raw: configRaw };
+  }
+
+  return { mode: "auto", source: "default", raw: null };
+}
+
+function getNativeCapabilities(): Record<string, boolean | string> {
+  return {
+    profile_access: true,
+    headless: false,
+    tab_claims: true,
+    file_uploads: "limited",
+    downloads: true,
+  };
+}
+
+function getFallbackBackendMessage(backend: "agent" | "native"): string {
+  return backend === "agent"
+    ? "Set OPENCODE_BROWSER_BACKEND=agent or `opencode-browser backend agent` after agent-browser is installed."
+    : "Set OPENCODE_BROWSER_BACKEND=native or `opencode-browser backend native` after the extension is connected.";
+}
+
+function nativeSetupSteps(): string[] {
+  return [
+    `Run \`npx ${PACKAGE_INSTALL_SPEC} install\` to install the broker and native host.`,
+    "Load and pin the unpacked extension in chrome://extensions.",
+    "Click the OpenCode Browser extension icon so the native host connection is established.",
+  ];
+}
+
+function agentSetupSteps(): string[] {
+  return [
+    `Run \`npx ${PACKAGE_INSTALL_SPEC} agent-install\` or install \`agent-browser\` globally.`,
+    "Ensure the agent-browser daemon or gateway is reachable.",
+    "Set OPENCODE_BROWSER_BACKEND=agent to force it, or use auto mode to prefer it when available.",
+  ];
+}
 
 let socket: net.Socket | null = null;
 let lastBrokerError: Error | null = null;
-let sessionId = Math.random().toString(36).slice(2);
+const sessionId = Math.random().toString(36).slice(2);
 let reqId = 0;
 const pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
 
-const agentBackend: AgentBackend | null = USE_AGENT_BACKEND ? createAgentBackend(sessionId) : null;
+const agentBackend: AgentBackend = createAgentBackend(sessionId);
 
 async function ensureBrokerSocket(): Promise<net.Socket> {
   if (socket && !socket.destroyed) return socket;
 
-  // Try to connect; if missing, try to start broker and retry.
   try {
     socket = await connectToBroker();
   } catch {
@@ -179,7 +301,9 @@ async function ensureBrokerSocket(): Promise<net.Socket> {
       try {
         socket = await connectToBroker();
         break;
-      } catch {}
+      } catch {
+        // retry
+      }
     }
   }
 
@@ -187,7 +311,7 @@ async function ensureBrokerSocket(): Promise<net.Socket> {
     const errorMessage = lastBrokerError?.message ? ` (${lastBrokerError.message})` : "";
     throw new Error(
       `Could not connect to local broker at ${SOCKET_PATH}${errorMessage}. ` +
-        "Run `npx @different-ai/opencode-browser install` and ensure the extension is loaded."
+        `Run \`npx ${PACKAGE_INSTALL_SPEC} install\` and ensure the extension is loaded.`
     );
   }
 
@@ -234,13 +358,6 @@ async function brokerRequest(op: string, payload: Record<string, any>): Promise<
   });
 }
 
-async function brokerOnlyRequest(op: string, payload: Record<string, any>): Promise<any> {
-  if (USE_AGENT_BACKEND) {
-    throw new Error("Tab claims are not supported with agent-browser backend");
-  }
-  return await brokerRequest(op, payload);
-}
-
 function toolResultText(data: any, fallback: string): string {
   if (typeof data?.content === "string") return data.content;
   if (typeof data === "string") return data;
@@ -248,48 +365,265 @@ function toolResultText(data: any, fallback: string): string {
   return fallback;
 }
 
-async function toolRequest(toolName: string, args: Record<string, any>): Promise<any> {
-  if (USE_AGENT_BACKEND) {
-    if (!agentBackend) {
-      throw new Error("Agent backend unavailable: configuration failed to initialize");
+async function probeNativeBackend(): Promise<BackendProbe> {
+  try {
+    const data = await brokerRequest("status", {});
+    const connected = !!data?.broker && !!data?.hostConnected;
+    const session = data?.session ?? null;
+    return {
+      backend: "extension",
+      connected,
+      broker: !!data?.broker,
+      hostConnected: !!data?.hostConnected,
+      claims: Array.isArray(data?.claims) ? data.claims : [],
+      leaseTtlMs: data?.leaseTtlMs ?? null,
+      session,
+      capabilities: getNativeCapabilities(),
+      active_session: session?.sessionId ?? sessionId,
+      error: connected ? undefined : "Chrome extension is not connected (native host offline).",
+      setup: connected ? undefined : nativeSetupSteps(),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      backend: "extension",
+      connected: false,
+      broker: false,
+      hostConnected: false,
+      claims: [],
+      leaseTtlMs: null,
+      session: null,
+      capabilities: getNativeCapabilities(),
+      active_session: sessionId,
+      error: message,
+      setup: nativeSetupSteps(),
+    };
+  }
+}
+
+async function probeAgentBackend(): Promise<BackendProbe> {
+  const status = await agentBackend.status();
+  return {
+    ...status,
+    setup: status.connected ? undefined : agentSetupSteps(),
+  };
+}
+
+async function resolveBackendSelection(): Promise<BackendSelection> {
+  const preference = getConfiguredBackendPreference();
+  const agent = await probeAgentBackend();
+  const native = await probeNativeBackend();
+
+  if (preference.mode === "auto") {
+    if (agent.connected) {
+      return {
+        requestedMode: "auto",
+        requestedBy: preference.source,
+        effectiveBackend: "agent",
+        selectionReason: "auto-preferred-agent",
+        selected: agent,
+        alternate: native,
+        probes: { agent, native },
+      };
     }
+    if (native.connected) {
+      return {
+        requestedMode: "auto",
+        requestedBy: preference.source,
+        effectiveBackend: "native",
+        selectionReason: "auto-fallback-native",
+        selected: native,
+        alternate: agent,
+        probes: { agent, native },
+      };
+    }
+    return {
+      requestedMode: "auto",
+      requestedBy: preference.source,
+      effectiveBackend: null,
+      selectionReason: "auto-no-backend-available",
+      selected: null,
+      alternate: null,
+      probes: { agent, native },
+    };
+  }
+
+  if (preference.mode === "agent") {
+    if (agent.connected) {
+      return {
+        requestedMode: "agent",
+        requestedBy: preference.source,
+        effectiveBackend: "agent",
+        selectionReason: "explicit-agent",
+        selected: agent,
+        alternate: native,
+        probes: { agent, native },
+      };
+    }
+    return {
+      requestedMode: "agent",
+      requestedBy: preference.source,
+      effectiveBackend: null,
+      selectionReason: "requested-agent-unavailable",
+      selected: null,
+      alternate: native.connected ? native : null,
+      probes: { agent, native },
+    };
+  }
+
+  if (native.connected) {
+    return {
+      requestedMode: "native",
+      requestedBy: preference.source,
+      effectiveBackend: "native",
+      selectionReason: "explicit-native",
+      selected: native,
+      alternate: agent,
+      probes: { agent, native },
+    };
+  }
+
+  return {
+    requestedMode: "native",
+    requestedBy: preference.source,
+    effectiveBackend: null,
+    selectionReason: "requested-native-unavailable",
+    selected: null,
+    alternate: agent.connected ? agent : null,
+    probes: { agent, native },
+  };
+}
+
+function formatSelectionError(selection: BackendSelection): Error {
+  if (selection.requestedMode === "auto") {
+    const lines = [
+      "No browser backend is available.",
+      `Agent Browser: ${selection.probes.agent.error || "unavailable"}`,
+      `Native Browser: ${selection.probes.native.error || "unavailable"}`,
+      "",
+      "Agent setup:",
+      ...agentSetupSteps().map((step) => `- ${step}`),
+      "",
+      "Native setup:",
+      ...nativeSetupSteps().map((step) => `- ${step}`),
+    ];
+    return new Error(lines.join("\n"));
+  }
+
+  const requestedLabel = selection.requestedMode === "agent" ? "Agent Browser" : "Native Browser";
+  const requestedProbe = selection.requestedMode === "agent" ? selection.probes.agent : selection.probes.native;
+  const fallbackProbe = selection.requestedMode === "agent" ? selection.probes.native : selection.probes.agent;
+  const fallbackMode = selection.requestedMode === "agent" ? "native" : "agent";
+
+  const lines = [
+    `${requestedLabel} is unavailable.`,
+    requestedProbe.error || "The selected backend could not be reached.",
+  ];
+
+  if (fallbackProbe.connected) {
+    lines.push(
+      "",
+      `Fallback available: ${fallbackProbe.backend}.`,
+      getFallbackBackendMessage(fallbackMode),
+      "Use `browser_status` to inspect backend availability and selection details."
+    );
+  } else {
+    lines.push("", "No fallback backend is currently available.");
+  }
+
+  const setup = selection.requestedMode === "agent" ? agentSetupSteps() : nativeSetupSteps();
+  lines.push("", "Setup:", ...setup.map((step) => `- ${step}`));
+  return new Error(lines.join("\n"));
+}
+
+async function statusRequest(): Promise<any> {
+  const selection = await resolveBackendSelection();
+  const selected = selection.selected;
+  const alternate = selection.alternate;
+
+  return {
+    connected: !!selected?.connected,
+    backend:
+      selection.effectiveBackend === "agent"
+        ? "agent-browser"
+        : selection.effectiveBackend === "native"
+          ? "extension"
+          : null,
+    requestedBackend: selection.requestedMode,
+    selectionMode: selection.requestedMode,
+    selectionSource: selection.requestedBy,
+    selectionReason: selection.selectionReason,
+    capabilities: selected?.capabilities ?? null,
+    active_session: selected?.active_session ?? null,
+    fallbackAvailable: !!alternate?.connected,
+    fallbackBackend: alternate?.connected ? alternate.backend : null,
+    pluginVersion: getPackageVersion(),
+    agentBrowserVersion: agentBackend.getVersion(),
+    backends: {
+      agent: selection.probes.agent,
+      native: selection.probes.native,
+    },
+  };
+}
+
+async function toolRequest(toolName: string, args: Record<string, any>): Promise<any> {
+  const selection = await resolveBackendSelection();
+  if (!selection.effectiveBackend || !selection.selected) {
+    throw formatSelectionError(selection);
+  }
+
+  if (selection.effectiveBackend === "agent") {
     return await agentBackend.requestTool(toolName, args);
   }
   return await brokerRequest("tool", { tool: toolName, args });
 }
 
-async function statusRequest(): Promise<any> {
-  if (USE_AGENT_BACKEND) {
-    if (!agentBackend) {
-      return {
-        backend: "agent-browser",
-        connected: false,
-        error: "Agent backend unavailable: configuration failed to initialize",
-      };
+async function brokerOnlyRequest(op: string, payload: Record<string, any>): Promise<any> {
+  const selection = await resolveBackendSelection();
+  if (selection.effectiveBackend !== "native") {
+    const lines = [
+      "This tool is only available on the native extension backend.",
+      `Current selection: ${
+        selection.effectiveBackend === "agent"
+          ? "agent-browser"
+          : selection.requestedMode === "auto"
+            ? "none available"
+            : selection.requestedMode
+      }`,
+    ];
+    if (selection.probes.native.connected) {
+      lines.push("Switch to the native backend with OPENCODE_BROWSER_BACKEND=native or `opencode-browser backend native`.");
+    } else {
+      lines.push(...nativeSetupSteps().map((step) => `- ${step}`));
     }
-    return await agentBackend.status();
+    throw new Error(lines.join("\n"));
   }
-  return await brokerRequest("status", {});
+  return await brokerRequest(op, payload);
 }
 
-const plugin: Plugin = async (ctx) => {
-
+const plugin: Plugin = async () => {
   return {
     tool: {
       browser_debug: tool({
-        description: "Debug plugin loading and connection status.",
+        description: "Debug plugin loading, backend preference, and connection status.",
         args: {},
-        async execute(args, ctx) {
+        async execute() {
+          const preference = getConfiguredBackendPreference();
+          const status = await statusRequest();
           const lines = [
             "loaded: true",
             `sessionId: ${sessionId}`,
             `pid: ${process.pid}`,
-            `backend: ${USE_AGENT_BACKEND ? "agent-browser" : "extension"}`,
-            `brokerSocket: ${SOCKET_PATH}`,
-            `agentSession: ${agentBackend?.session ?? ""}`,
-            `agentConnection: ${JSON.stringify(agentBackend?.connection ?? null)}`,
-            `agentBrowserVersion: ${agentBackend?.getVersion?.() ?? ""}`,
             `pluginVersion: ${getPackageVersion()}`,
+            `configPath: ${CONFIG_PATH}`,
+            `requestedBackend: ${preference.mode}`,
+            `selectionSource: ${preference.source}`,
+            `effectiveBackend: ${status.backend ?? "none"}`,
+            `selectionReason: ${status.selectionReason}`,
+            `brokerSocket: ${SOCKET_PATH}`,
+            `agentSession: ${agentBackend.session}`,
+            `agentConnection: ${JSON.stringify(agentBackend.connection)}`,
+            `agentBrowserVersion: ${agentBackend.getVersion() ?? ""}`,
             `timestamp: ${new Date().toISOString()}`,
           ];
           return lines.join("\n");
@@ -297,24 +631,26 @@ const plugin: Plugin = async (ctx) => {
       }),
 
       browser_version: tool({
-        description: "Return the installed @different-ai/opencode-browser plugin version.",
+        description: "Return the installed OpenCode Browser plugin version.",
         args: {},
-        async execute(args, ctx) {
+        async execute() {
+          const preference = getConfiguredBackendPreference();
           return JSON.stringify({
-            name: "@different-ai/opencode-browser",
+            name: getPackageName(),
             version: getPackageVersion(),
             sessionId,
             pid: process.pid,
-            backend: USE_AGENT_BACKEND ? "agent-browser" : "extension",
-            agentBrowserVersion: agentBackend?.getVersion?.() ?? null,
+            requestedBackend: preference.mode,
+            selectionSource: preference.source,
+            agentBrowserVersion: agentBackend.getVersion(),
           });
         },
       }),
 
       browser_status: tool({
-        description: "Check backend connection status and current tab claims.",
+        description: "Check backend selection, connection status, capabilities, and current tab claims.",
         args: {},
-        async execute(args, ctx) {
+        async execute() {
           const data = await statusRequest();
           return JSON.stringify(data);
         },
@@ -323,7 +659,7 @@ const plugin: Plugin = async (ctx) => {
       browser_get_tabs: tool({
         description: "List all open browser tabs",
         args: {},
-        async execute(args, ctx) {
+        async execute() {
           const data = await toolRequest("get_tabs", {});
           return toolResultText(data, "ok");
         },
@@ -332,7 +668,7 @@ const plugin: Plugin = async (ctx) => {
       browser_list_claims: tool({
         description: "List tab ownership claims",
         args: {},
-        async execute(args, ctx) {
+        async execute() {
           const data = await brokerOnlyRequest("list_claims", {});
           return JSON.stringify(data);
         },
@@ -344,7 +680,7 @@ const plugin: Plugin = async (ctx) => {
           tabId: schema.number(),
           force: schema.boolean().optional(),
         },
-        async execute({ tabId, force }, ctx) {
+        async execute({ tabId, force }) {
           const data = await brokerOnlyRequest("claim_tab", { tabId, force });
           return JSON.stringify(data);
         },
@@ -355,7 +691,7 @@ const plugin: Plugin = async (ctx) => {
         args: {
           tabId: schema.number(),
         },
-        async execute({ tabId }, ctx) {
+        async execute({ tabId }) {
           const data = await brokerOnlyRequest("release_tab", { tabId });
           return JSON.stringify(data);
         },
@@ -367,9 +703,20 @@ const plugin: Plugin = async (ctx) => {
           url: schema.string().optional(),
           active: schema.boolean().optional(),
         },
-        async execute({ url, active }, ctx) {
+        async execute({ url, active }) {
           const data = await toolRequest("open_tab", { url, active });
           return toolResultText(data, "Opened new tab");
+        },
+      }),
+
+      browser_set_active_tab: tool({
+        description: "Switch the active browser tab to a tab owned by this session.",
+        args: {
+          tabId: schema.number(),
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("set_active_tab", { tabId });
+          return toolResultText(data, `Activated tab ${tabId}`);
         },
       }),
 
@@ -378,7 +725,7 @@ const plugin: Plugin = async (ctx) => {
         args: {
           tabId: schema.number().optional(),
         },
-        async execute({ tabId }, ctx) {
+        async execute({ tabId }) {
           const data = await toolRequest("close_tab", { tabId });
           return toolResultText(data, "Closed tab");
         },
@@ -390,9 +737,42 @@ const plugin: Plugin = async (ctx) => {
           url: schema.string(),
           tabId: schema.number().optional(),
         },
-        async execute({ url, tabId }, ctx) {
+        async execute({ url, tabId }) {
           const data = await toolRequest("navigate", { url, tabId });
           return toolResultText(data, `Navigated to ${url}`);
+        },
+      }),
+
+      browser_back: tool({
+        description: "Navigate back in the current tab history.",
+        args: {
+          tabId: schema.number().optional(),
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("back", { tabId });
+          return toolResultText(data, "Navigated back");
+        },
+      }),
+
+      browser_forward: tool({
+        description: "Navigate forward in the current tab history.",
+        args: {
+          tabId: schema.number().optional(),
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("forward", { tabId });
+          return toolResultText(data, "Navigated forward");
+        },
+      }),
+
+      browser_reload: tool({
+        description: "Reload the current tab.",
+        args: {
+          tabId: schema.number().optional(),
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("reload", { tabId });
+          return toolResultText(data, "Reloaded tab");
         },
       }),
 
@@ -405,9 +785,39 @@ const plugin: Plugin = async (ctx) => {
           timeoutMs: schema.number().optional(),
           pollMs: schema.number().optional(),
         },
-        async execute({ selector, index, tabId, timeoutMs, pollMs }, ctx) {
+        async execute({ selector, index, tabId, timeoutMs, pollMs }) {
           const data = await toolRequest("click", { selector, index, tabId, timeoutMs, pollMs });
           return toolResultText(data, `Clicked ${selector}`);
+        },
+      }),
+
+      browser_hover: tool({
+        description: "Hover an element on the page using a selector.",
+        args: {
+          selector: schema.string(),
+          index: schema.number().optional(),
+          tabId: schema.number().optional(),
+          timeoutMs: schema.number().optional(),
+          pollMs: schema.number().optional(),
+        },
+        async execute({ selector, index, tabId, timeoutMs, pollMs }) {
+          const data = await toolRequest("hover", { selector, index, tabId, timeoutMs, pollMs });
+          return toolResultText(data, `Hovered ${selector}`);
+        },
+      }),
+
+      browser_focus: tool({
+        description: "Focus an element on the page using a selector.",
+        args: {
+          selector: schema.string(),
+          index: schema.number().optional(),
+          tabId: schema.number().optional(),
+          timeoutMs: schema.number().optional(),
+          pollMs: schema.number().optional(),
+        },
+        async execute({ selector, index, tabId, timeoutMs, pollMs }) {
+          const data = await toolRequest("focus", { selector, index, tabId, timeoutMs, pollMs });
+          return toolResultText(data, `Focused ${selector}`);
         },
       }),
 
@@ -422,9 +832,25 @@ const plugin: Plugin = async (ctx) => {
           timeoutMs: schema.number().optional(),
           pollMs: schema.number().optional(),
         },
-        async execute({ selector, text, clear, index, tabId, timeoutMs, pollMs }, ctx) {
+        async execute({ selector, text, clear, index, tabId, timeoutMs, pollMs }) {
           const data = await toolRequest("type", { selector, text, clear, index, tabId, timeoutMs, pollMs });
           return toolResultText(data, `Typed "${text}" into ${selector}`);
+        },
+      }),
+
+      browser_key: tool({
+        description: "Press a keyboard key or chord, optionally targeting a selector first.",
+        args: {
+          key: schema.string(),
+          selector: schema.string().optional(),
+          index: schema.number().optional(),
+          tabId: schema.number().optional(),
+          timeoutMs: schema.number().optional(),
+          pollMs: schema.number().optional(),
+        },
+        async execute({ key, selector, index, tabId, timeoutMs, pollMs }) {
+          const data = await toolRequest("key", { key, selector, index, tabId, timeoutMs, pollMs });
+          return toolResultText(data, `Pressed ${key}`);
         },
       }),
 
@@ -440,7 +866,7 @@ const plugin: Plugin = async (ctx) => {
           timeoutMs: schema.number().optional(),
           pollMs: schema.number().optional(),
         },
-        async execute({ selector, value, label, optionIndex, index, tabId, timeoutMs, pollMs }, ctx) {
+        async execute({ selector, value, label, optionIndex, index, tabId, timeoutMs, pollMs }) {
           const data = await toolRequest("select", { selector, value, label, optionIndex, index, tabId, timeoutMs, pollMs });
           const summary = value ?? label ?? (optionIndex != null ? String(optionIndex) : "option");
           return toolResultText(data, `Selected ${summary} in ${selector}`);
@@ -452,7 +878,7 @@ const plugin: Plugin = async (ctx) => {
         args: {
           tabId: schema.number().optional(),
         },
-        async execute({ tabId }, ctx) {
+        async execute({ tabId }) {
           const data = await toolRequest("screenshot", { tabId });
           return toolResultText(data, "Screenshot failed");
         },
@@ -463,7 +889,7 @@ const plugin: Plugin = async (ctx) => {
         args: {
           tabId: schema.number().optional(),
         },
-        async execute({ tabId }, ctx) {
+        async execute({ tabId }) {
           const data = await toolRequest("snapshot", { tabId });
           return toolResultText(data, "Snapshot failed");
         },
@@ -479,7 +905,7 @@ const plugin: Plugin = async (ctx) => {
           timeoutMs: schema.number().optional(),
           pollMs: schema.number().optional(),
         },
-        async execute({ selector, x, y, tabId, timeoutMs, pollMs }, ctx) {
+        async execute({ selector, x, y, tabId, timeoutMs, pollMs }) {
           const data = await toolRequest("scroll", { selector, x, y, tabId, timeoutMs, pollMs });
           return toolResultText(data, "Scrolled");
         },
@@ -491,7 +917,7 @@ const plugin: Plugin = async (ctx) => {
           ms: schema.number().optional(),
           tabId: schema.number().optional(),
         },
-        async execute({ ms, tabId }, ctx) {
+        async execute({ ms, tabId }) {
           const data = await toolRequest("wait", { ms, tabId });
           return toolResultText(data, "Waited");
         },
@@ -513,7 +939,7 @@ const plugin: Plugin = async (ctx) => {
           flags: schema.string().optional(),
           tabId: schema.number().optional(),
         },
-        async execute({ selector, mode, attribute, property, index, limit, timeoutMs, pollMs, pattern, flags, tabId }, ctx) {
+        async execute({ selector, mode, attribute, property, index, limit, timeoutMs, pollMs, pattern, flags, tabId }) {
           const data = await toolRequest("query", {
             selector,
             mode,
@@ -547,8 +973,7 @@ const plugin: Plugin = async (ctx) => {
           pollMs: schema.number().optional(),
         },
         async execute(
-          { url, selector, filename, conflictAction, saveAs, wait, downloadTimeoutMs, index, tabId, timeoutMs, pollMs },
-          ctx
+          { url, selector, filename, conflictAction, saveAs, wait, downloadTimeoutMs, index, tabId, timeoutMs, pollMs }
         ) {
           const data = await toolRequest("download", {
             url,
@@ -573,7 +998,7 @@ const plugin: Plugin = async (ctx) => {
           limit: schema.number().optional(),
           state: schema.string().optional(),
         },
-        async execute({ limit, state }, ctx) {
+        async execute({ limit, state }) {
           const data = await toolRequest("list_downloads", { limit, state });
           return toolResultText(data, "[]");
         },
@@ -591,20 +1016,27 @@ const plugin: Plugin = async (ctx) => {
           timeoutMs: schema.number().optional(),
           pollMs: schema.number().optional(),
         },
-        async execute({ selector, filePath, fileName, mimeType, index, tabId, timeoutMs, pollMs }, ctx) {
-          if (USE_AGENT_BACKEND) {
-            const data = await toolRequest("set_file_input", { selector, filePath, tabId, index, timeoutMs, pollMs });
+        async execute({ selector, filePath, fileName, mimeType, index, tabId, timeoutMs, pollMs }) {
+          const selection = await resolveBackendSelection();
+          if (selection.effectiveBackend === "agent") {
+            const data = await agentBackend.requestTool("set_file_input", { selector, filePath, tabId, index, timeoutMs, pollMs });
             return toolResultText(data, "Set file input");
+          }
+          if (selection.effectiveBackend !== "native") {
+            throw formatSelectionError(selection);
           }
 
           const file = buildFileUploadPayload(filePath, fileName, mimeType);
-          const data = await toolRequest("set_file_input", {
-            selector,
-            tabId,
-            index,
-            timeoutMs,
-            pollMs,
-            files: [file],
+          const data = await brokerRequest("tool", {
+            tool: "set_file_input",
+            args: {
+              selector,
+              tabId,
+              index,
+              timeoutMs,
+              pollMs,
+              files: [file],
+            },
           });
           return toolResultText(data, "Set file input");
         },
@@ -622,7 +1054,7 @@ const plugin: Plugin = async (ctx) => {
           timeoutMs: schema.number().optional(),
           pollMs: schema.number().optional(),
         },
-        async execute({ selector, index, duration, color, showInfo, tabId, timeoutMs, pollMs }, ctx) {
+        async execute({ selector, index, duration, color, showInfo, tabId, timeoutMs, pollMs }) {
           const data = await toolRequest("highlight", {
             selector,
             index,
@@ -646,7 +1078,7 @@ const plugin: Plugin = async (ctx) => {
           clear: schema.boolean().optional(),
           filter: schema.string().optional(),
         },
-        async execute({ tabId, clear, filter }, ctx) {
+        async execute({ tabId, clear, filter }) {
           const data = await toolRequest("console", { tabId, clear, filter });
           return toolResultText(data, "[]");
         },
@@ -660,7 +1092,7 @@ const plugin: Plugin = async (ctx) => {
           tabId: schema.number().optional(),
           clear: schema.boolean().optional(),
         },
-        async execute({ tabId, clear }, ctx) {
+        async execute({ tabId, clear }) {
           const data = await toolRequest("errors", { tabId, clear });
           return toolResultText(data, "[]");
         },

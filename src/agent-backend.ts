@@ -27,6 +27,16 @@ const DEFAULT_POLL_MS = 200;
 const BASE_DIR = join(homedir(), ".opencode-browser");
 const DEFAULT_DOWNLOADS_DIR = join(BASE_DIR, "downloads");
 
+function getAgentCapabilities(): Record<string, boolean | string> {
+  return {
+    profile_access: false,
+    headless: true,
+    tab_claims: false,
+    file_uploads: true,
+    downloads: true,
+  };
+}
+
 export type AgentBackend = {
   mode: "agent";
   session: string;
@@ -195,6 +205,56 @@ function buildAgentTypeScript(selector: string, indexValue: number, text: string
       return { ok: true };
     }
     return { ok: false, error: "Element is not typable" };
+  `);
+}
+
+function buildAgentFocusScript(selector: string, indexValue: number): string {
+  const payload = { selector, index: indexValue };
+  return buildEvalScript(`
+    const payload = ${JSON.stringify(payload)};
+    let matches = [];
+    try {
+      matches = Array.from(document.querySelectorAll(payload.selector));
+    } catch {
+      return { ok: false, error: "Invalid selector" };
+    }
+    const element = matches[payload.index];
+    if (!element) return { ok: false, error: "Element not found" };
+    try {
+      element.scrollIntoView({ block: "center", inline: "center" });
+    } catch {}
+    try {
+      element.focus();
+    } catch {}
+    return { ok: true };
+  `);
+}
+
+function buildAgentHoverScript(selector: string, indexValue: number): string {
+  const payload = { selector, index: indexValue };
+  return buildEvalScript(`
+    const payload = ${JSON.stringify(payload)};
+    let matches = [];
+    try {
+      matches = Array.from(document.querySelectorAll(payload.selector));
+    } catch {
+      return { ok: false, error: "Invalid selector" };
+    }
+    const element = matches[payload.index];
+    if (!element) return { ok: false, error: "Element not found" };
+    try {
+      element.scrollIntoView({ block: "center", inline: "center" });
+    } catch {}
+    const rect = element.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const opts = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y };
+    try {
+      element.dispatchEvent(new MouseEvent("mouseover", opts));
+      element.dispatchEvent(new MouseEvent("mouseenter", opts));
+      element.dispatchEvent(new MouseEvent("mousemove", opts));
+    } catch {}
+    return { ok: true };
   `);
 }
 
@@ -394,7 +454,11 @@ export function createAgentBackend(sessionId: string): AgentBackend {
     return isAbsolute(raw) ? raw : resolve(process.cwd(), raw);
   })();
 
-  mkdirSync(downloadsDir, { recursive: true });
+  try {
+    mkdirSync(downloadsDir, { recursive: true });
+  } catch {
+    // Defer hard failures until a download is actually attempted.
+  }
 
   const downloads: Array<{ path: string; filename?: string; url?: string; timestamp: string }> = [];
 
@@ -666,6 +730,11 @@ export function createAgentBackend(sessionId: string): AgentBackend {
         }
         return { content: { tabId: created.index, url: args.url, active: active !== false } };
       }
+      case "set_active_tab": {
+        if (!Number.isFinite(args.tabId)) throw new Error("tabId is required");
+        await agentCommand("tab_switch", { index: args.tabId });
+        return { content: { tabId: args.tabId, active: true } };
+      }
       case "close_tab": {
         const payload: Record<string, any> = {};
         if (Number.isFinite(args.tabId)) payload.index = args.tabId;
@@ -678,6 +747,24 @@ export function createAgentBackend(sessionId: string): AgentBackend {
           if (!args.url) throw new Error("URL is required");
           await agentCommand("navigate", { url: args.url });
           return { content: `Navigated to ${args.url}` };
+        });
+      }
+      case "back": {
+        return await withTab(args.tabId, async () => {
+          await agentCommand("back", {});
+          return { content: "Navigated back" };
+        });
+      }
+      case "forward": {
+        return await withTab(args.tabId, async () => {
+          await agentCommand("forward", {});
+          return { content: "Navigated forward" };
+        });
+      }
+      case "reload": {
+        return await withTab(args.tabId, async () => {
+          await agentCommand("reload", {});
+          return { content: "Reloaded tab" };
         });
       }
       case "download": {
@@ -736,6 +823,34 @@ export function createAgentBackend(sessionId: string): AgentBackend {
           return { content: `Clicked ${args.selector}` };
         });
       }
+      case "hover": {
+        return await withTab(args.tabId, async () => {
+          if (!args.selector) throw new Error("Selector is required");
+          const indexValue = Number.isFinite(args.index) ? args.index : 0;
+          if (indexValue > 0) {
+            await agentCommand("nth", { selector: args.selector, index: indexValue, subaction: "hover" });
+          } else if (indexValue < 0) {
+            const result = await agentEvaluate(buildAgentHoverScript(args.selector, indexValue));
+            if (!result?.ok) throw new Error(result?.error || "Hover failed");
+          } else {
+            await agentCommand("hover", { selector: args.selector });
+          }
+          return { content: `Hovered ${args.selector}` };
+        });
+      }
+      case "focus": {
+        return await withTab(args.tabId, async () => {
+          if (!args.selector) throw new Error("Selector is required");
+          const indexValue = Number.isFinite(args.index) ? args.index : 0;
+          if (indexValue === 0) {
+            await agentCommand("focus", { selector: args.selector });
+          } else {
+            const result = await agentEvaluate(buildAgentFocusScript(args.selector, indexValue));
+            if (!result?.ok) throw new Error(result?.error || "Focus failed");
+          }
+          return { content: `Focused ${args.selector}` };
+        });
+      }
       case "type": {
         return await withTab(args.tabId, async () => {
           if (!args.selector) throw new Error("Selector is required");
@@ -756,6 +871,26 @@ export function createAgentBackend(sessionId: string): AgentBackend {
             }
           }
           return { content: `Typed "${args.text}" into ${args.selector}` };
+        });
+      }
+      case "key": {
+        return await withTab(args.tabId, async () => {
+          if (!args.key) throw new Error("key is required");
+          const keyValue = String(args.key);
+          const selector = typeof args.selector === "string" ? args.selector : undefined;
+          const indexValue = Number.isFinite(args.index) ? args.index : 0;
+          if (selector) {
+            if (indexValue === 0) {
+              await agentCommand("press", { key: keyValue, selector });
+            } else {
+              const result = await agentEvaluate(buildAgentFocusScript(selector, indexValue));
+              if (!result?.ok) throw new Error(result?.error || "Focus failed");
+              await agentCommand("press", { key: keyValue });
+            }
+          } else {
+            await agentCommand("press", { key: keyValue });
+          }
+          return { content: `Pressed ${keyValue}` };
         });
       }
       case "select": {
@@ -872,6 +1007,8 @@ export function createAgentBackend(sessionId: string): AgentBackend {
       connected,
       error,
       agentBrowserVersion: getAgentPackageVersion(),
+      capabilities: getAgentCapabilities(),
+      active_session: session,
     };
   }
 

@@ -1,15 +1,19 @@
 var __defProp = Object.defineProperty;
+var __returnValue = (v) => v;
+function __exportSetter(name, newValue) {
+  this[name] = __returnValue.bind(null, newValue);
+}
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, {
       get: all[name],
       enumerable: true,
       configurable: true,
-      set: (newValue) => all[name] = () => newValue
+      set: __exportSetter.bind(all, name)
     });
 };
 
-// node_modules/zod/v4/classic/external.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/classic/external.js
 var exports_external = {};
 __export(exports_external, {
   xid: () => xid2,
@@ -239,7 +243,7 @@ __export(exports_external, {
   $brand: () => $brand
 });
 
-// node_modules/zod/v4/core/index.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/core/index.js
 var exports_core2 = {};
 __export(exports_core2, {
   version: () => version,
@@ -503,7 +507,7 @@ __export(exports_core2, {
   $ZodAny: () => $ZodAny
 });
 
-// node_modules/zod/v4/core/core.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/core/core.js
 var NEVER = Object.freeze({
   status: "aborted"
 });
@@ -570,7 +574,7 @@ function config(newConfig) {
     Object.assign(globalConfig, newConfig);
   return globalConfig;
 }
-// node_modules/zod/v4/core/util.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/core/util.js
 var exports_util = {};
 __export(exports_util, {
   unwrapMessage: () => unwrapMessage,
@@ -1199,7 +1203,7 @@ class Class {
   constructor(..._args) {}
 }
 
-// node_modules/zod/v4/core/errors.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/core/errors.js
 var initializer = (inst, def) => {
   inst.name = "$ZodError";
   Object.defineProperty(inst, "_zod", {
@@ -1342,7 +1346,7 @@ function prettifyError(error) {
 `);
 }
 
-// node_modules/zod/v4/core/parse.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/core/parse.js
 var _parse = (_Err) => (schema, value, _ctx, _params) => {
   const ctx = _ctx ? Object.assign(_ctx, { async: false }) : { async: false };
   const result = schema._zod.run({ value, issues: [] }, ctx);
@@ -1429,7 +1433,7 @@ var _safeDecodeAsync = (_Err) => async (schema, value, _ctx) => {
   return _safeParseAsync(_Err)(schema, value, _ctx);
 };
 var safeDecodeAsync = /* @__PURE__ */ _safeDecodeAsync($ZodRealError);
-// node_modules/zod/v4/core/regexes.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/core/regexes.js
 var exports_regexes = {};
 __export(exports_regexes, {
   xid: () => xid,
@@ -1581,7 +1585,7 @@ var sha512_hex = /^[0-9a-fA-F]{128}$/;
 var sha512_base64 = /* @__PURE__ */ fixedBase64(86, "==");
 var sha512_base64url = /* @__PURE__ */ fixedBase64url(86);
 
-// node_modules/zod/v4/core/checks.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/core/checks.js
 var $ZodCheck = /* @__PURE__ */ $constructor("$ZodCheck", (inst, def) => {
   var _a;
   inst._zod ?? (inst._zod = {});
@@ -2122,7 +2126,7 @@ var $ZodCheckOverwrite = /* @__PURE__ */ $constructor("$ZodCheckOverwrite", (ins
   };
 });
 
-// node_modules/zod/v4/core/doc.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/core/doc.js
 class Doc {
   constructor(args = []) {
     this.content = [];
@@ -2160,14 +2164,14 @@ class Doc {
   }
 }
 
-// node_modules/zod/v4/core/versions.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/core/versions.js
 var version = {
   major: 4,
   minor: 1,
   patch: 8
 };
 
-// node_modules/zod/v4/core/schemas.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/core/schemas.js
 var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
   var _a;
   inst ?? (inst = {});
@@ -3990,7 +3994,7 @@ function handleRefineResult(result, payload, input, inst) {
     payload.issues.push(issue(_iss));
   }
 }
-// node_modules/zod/v4/locales/index.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/index.js
 var exports_locales = {};
 __export(exports_locales, {
   zhTW: () => zh_TW_default,
@@ -4041,7 +4045,7 @@ __export(exports_locales, {
   ar: () => ar_default
 });
 
-// node_modules/zod/v4/locales/ar.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/ar.js
 var error = () => {
   const Sizable = {
     string: { unit: "حرف", verb: "أن يحوي" },
@@ -4157,7 +4161,7 @@ function ar_default() {
     localeError: error()
   };
 }
-// node_modules/zod/v4/locales/az.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/az.js
 var error2 = () => {
   const Sizable = {
     string: { unit: "simvol", verb: "olmalıdır" },
@@ -4272,7 +4276,7 @@ function az_default() {
     localeError: error2()
   };
 }
-// node_modules/zod/v4/locales/be.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/be.js
 function getBelarusianPlural(count, one, few, many) {
   const absCount = Math.abs(count);
   const lastDigit = absCount % 10;
@@ -4436,7 +4440,7 @@ function be_default() {
     localeError: error3()
   };
 }
-// node_modules/zod/v4/locales/ca.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/ca.js
 var error4 = () => {
   const Sizable = {
     string: { unit: "caràcters", verb: "contenir" },
@@ -4553,7 +4557,7 @@ function ca_default() {
     localeError: error4()
   };
 }
-// node_modules/zod/v4/locales/cs.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/cs.js
 var error5 = () => {
   const Sizable = {
     string: { unit: "znaků", verb: "mít" },
@@ -4688,7 +4692,7 @@ function cs_default() {
     localeError: error5()
   };
 }
-// node_modules/zod/v4/locales/da.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/da.js
 var error6 = () => {
   const Sizable = {
     string: { unit: "tegn", verb: "havde" },
@@ -4819,7 +4823,7 @@ function da_default() {
     localeError: error6()
   };
 }
-// node_modules/zod/v4/locales/de.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/de.js
 var error7 = () => {
   const Sizable = {
     string: { unit: "Zeichen", verb: "zu haben" },
@@ -4935,7 +4939,7 @@ function de_default() {
     localeError: error7()
   };
 }
-// node_modules/zod/v4/locales/en.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/en.js
 var parsedType = (data) => {
   const t = typeof data;
   switch (t) {
@@ -5052,7 +5056,7 @@ function en_default() {
     localeError: error8()
   };
 }
-// node_modules/zod/v4/locales/eo.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/eo.js
 var parsedType2 = (data) => {
   const t = typeof data;
   switch (t) {
@@ -5168,7 +5172,7 @@ function eo_default() {
     localeError: error9()
   };
 }
-// node_modules/zod/v4/locales/es.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/es.js
 var error10 = () => {
   const Sizable = {
     string: { unit: "caracteres", verb: "tener" },
@@ -5316,7 +5320,7 @@ function es_default() {
     localeError: error10()
   };
 }
-// node_modules/zod/v4/locales/fa.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/fa.js
 var error11 = () => {
   const Sizable = {
     string: { unit: "کاراکتر", verb: "داشته باشد" },
@@ -5438,7 +5442,7 @@ function fa_default() {
     localeError: error11()
   };
 }
-// node_modules/zod/v4/locales/fi.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/fi.js
 var error12 = () => {
   const Sizable = {
     string: { unit: "merkkiä", subject: "merkkijonon" },
@@ -5560,7 +5564,7 @@ function fi_default() {
     localeError: error12()
   };
 }
-// node_modules/zod/v4/locales/fr.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/fr.js
 var error13 = () => {
   const Sizable = {
     string: { unit: "caractères", verb: "avoir" },
@@ -5676,7 +5680,7 @@ function fr_default() {
     localeError: error13()
   };
 }
-// node_modules/zod/v4/locales/fr-CA.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/fr-CA.js
 var error14 = () => {
   const Sizable = {
     string: { unit: "caractères", verb: "avoir" },
@@ -5793,7 +5797,7 @@ function fr_CA_default() {
     localeError: error14()
   };
 }
-// node_modules/zod/v4/locales/he.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/he.js
 var error15 = () => {
   const Sizable = {
     string: { unit: "אותיות", verb: "לכלול" },
@@ -5909,7 +5913,7 @@ function he_default() {
     localeError: error15()
   };
 }
-// node_modules/zod/v4/locales/hu.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/hu.js
 var error16 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "legyen" },
@@ -6025,7 +6029,7 @@ function hu_default() {
     localeError: error16()
   };
 }
-// node_modules/zod/v4/locales/id.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/id.js
 var error17 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "memiliki" },
@@ -6141,7 +6145,7 @@ function id_default() {
     localeError: error17()
   };
 }
-// node_modules/zod/v4/locales/is.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/is.js
 var parsedType3 = (data) => {
   const t = typeof data;
   switch (t) {
@@ -6258,7 +6262,7 @@ function is_default() {
     localeError: error18()
   };
 }
-// node_modules/zod/v4/locales/it.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/it.js
 var error19 = () => {
   const Sizable = {
     string: { unit: "caratteri", verb: "avere" },
@@ -6374,7 +6378,7 @@ function it_default() {
     localeError: error19()
   };
 }
-// node_modules/zod/v4/locales/ja.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/ja.js
 var error20 = () => {
   const Sizable = {
     string: { unit: "文字", verb: "である" },
@@ -6489,7 +6493,7 @@ function ja_default() {
     localeError: error20()
   };
 }
-// node_modules/zod/v4/locales/ka.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/ka.js
 var parsedType4 = (data) => {
   const t = typeof data;
   switch (t) {
@@ -6614,7 +6618,7 @@ function ka_default() {
     localeError: error21()
   };
 }
-// node_modules/zod/v4/locales/km.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/km.js
 var error22 = () => {
   const Sizable = {
     string: { unit: "តួអក្សរ", verb: "គួរមាន" },
@@ -6732,11 +6736,11 @@ function km_default() {
   };
 }
 
-// node_modules/zod/v4/locales/kh.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/kh.js
 function kh_default() {
   return km_default();
 }
-// node_modules/zod/v4/locales/ko.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/ko.js
 var error23 = () => {
   const Sizable = {
     string: { unit: "문자", verb: "to have" },
@@ -6857,7 +6861,7 @@ function ko_default() {
     localeError: error23()
   };
 }
-// node_modules/zod/v4/locales/lt.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/lt.js
 var parsedType5 = (data) => {
   const t = typeof data;
   return parsedTypeFromType(t, data);
@@ -7086,7 +7090,7 @@ function lt_default() {
     localeError: error24()
   };
 }
-// node_modules/zod/v4/locales/mk.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/mk.js
 var error25 = () => {
   const Sizable = {
     string: { unit: "знаци", verb: "да имаат" },
@@ -7203,7 +7207,7 @@ function mk_default() {
     localeError: error25()
   };
 }
-// node_modules/zod/v4/locales/ms.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/ms.js
 var error26 = () => {
   const Sizable = {
     string: { unit: "aksara", verb: "mempunyai" },
@@ -7319,7 +7323,7 @@ function ms_default() {
     localeError: error26()
   };
 }
-// node_modules/zod/v4/locales/nl.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/nl.js
 var error27 = () => {
   const Sizable = {
     string: { unit: "tekens" },
@@ -7436,7 +7440,7 @@ function nl_default() {
     localeError: error27()
   };
 }
-// node_modules/zod/v4/locales/no.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/no.js
 var error28 = () => {
   const Sizable = {
     string: { unit: "tegn", verb: "å ha" },
@@ -7552,7 +7556,7 @@ function no_default() {
     localeError: error28()
   };
 }
-// node_modules/zod/v4/locales/ota.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/ota.js
 var error29 = () => {
   const Sizable = {
     string: { unit: "harf", verb: "olmalıdır" },
@@ -7668,7 +7672,7 @@ function ota_default() {
     localeError: error29()
   };
 }
-// node_modules/zod/v4/locales/ps.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/ps.js
 var error30 = () => {
   const Sizable = {
     string: { unit: "توکي", verb: "ولري" },
@@ -7790,7 +7794,7 @@ function ps_default() {
     localeError: error30()
   };
 }
-// node_modules/zod/v4/locales/pl.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/pl.js
 var error31 = () => {
   const Sizable = {
     string: { unit: "znaków", verb: "mieć" },
@@ -7907,7 +7911,7 @@ function pl_default() {
     localeError: error31()
   };
 }
-// node_modules/zod/v4/locales/pt.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/pt.js
 var error32 = () => {
   const Sizable = {
     string: { unit: "caracteres", verb: "ter" },
@@ -8023,7 +8027,7 @@ function pt_default() {
     localeError: error32()
   };
 }
-// node_modules/zod/v4/locales/ru.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/ru.js
 function getRussianPlural(count, one, few, many) {
   const absCount = Math.abs(count);
   const lastDigit = absCount % 10;
@@ -8187,7 +8191,7 @@ function ru_default() {
     localeError: error33()
   };
 }
-// node_modules/zod/v4/locales/sl.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/sl.js
 var error34 = () => {
   const Sizable = {
     string: { unit: "znakov", verb: "imeti" },
@@ -8304,7 +8308,7 @@ function sl_default() {
     localeError: error34()
   };
 }
-// node_modules/zod/v4/locales/sv.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/sv.js
 var error35 = () => {
   const Sizable = {
     string: { unit: "tecken", verb: "att ha" },
@@ -8422,7 +8426,7 @@ function sv_default() {
     localeError: error35()
   };
 }
-// node_modules/zod/v4/locales/ta.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/ta.js
 var error36 = () => {
   const Sizable = {
     string: { unit: "எழுத்துக்கள்", verb: "கொண்டிருக்க வேண்டும்" },
@@ -8539,7 +8543,7 @@ function ta_default() {
     localeError: error36()
   };
 }
-// node_modules/zod/v4/locales/th.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/th.js
 var error37 = () => {
   const Sizable = {
     string: { unit: "ตัวอักษร", verb: "ควรมี" },
@@ -8656,7 +8660,7 @@ function th_default() {
     localeError: error37()
   };
 }
-// node_modules/zod/v4/locales/tr.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/tr.js
 var parsedType6 = (data) => {
   const t = typeof data;
   switch (t) {
@@ -8771,7 +8775,7 @@ function tr_default() {
     localeError: error38()
   };
 }
-// node_modules/zod/v4/locales/uk.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/uk.js
 var error39 = () => {
   const Sizable = {
     string: { unit: "символів", verb: "матиме" },
@@ -8888,11 +8892,11 @@ function uk_default() {
   };
 }
 
-// node_modules/zod/v4/locales/ua.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/ua.js
 function ua_default() {
   return uk_default();
 }
-// node_modules/zod/v4/locales/ur.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/ur.js
 var error40 = () => {
   const Sizable = {
     string: { unit: "حروف", verb: "ہونا" },
@@ -9009,7 +9013,7 @@ function ur_default() {
     localeError: error40()
   };
 }
-// node_modules/zod/v4/locales/vi.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/vi.js
 var error41 = () => {
   const Sizable = {
     string: { unit: "ký tự", verb: "có" },
@@ -9125,7 +9129,7 @@ function vi_default() {
     localeError: error41()
   };
 }
-// node_modules/zod/v4/locales/zh-CN.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/zh-CN.js
 var error42 = () => {
   const Sizable = {
     string: { unit: "字符", verb: "包含" },
@@ -9241,7 +9245,7 @@ function zh_CN_default() {
     localeError: error42()
   };
 }
-// node_modules/zod/v4/locales/zh-TW.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/zh-TW.js
 var error43 = () => {
   const Sizable = {
     string: { unit: "字元", verb: "擁有" },
@@ -9358,7 +9362,7 @@ function zh_TW_default() {
     localeError: error43()
   };
 }
-// node_modules/zod/v4/locales/yo.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/locales/yo.js
 var error44 = () => {
   const Sizable = {
     string: { unit: "àmi", verb: "ní" },
@@ -9473,7 +9477,7 @@ function yo_default() {
     localeError: error44()
   };
 }
-// node_modules/zod/v4/core/registries.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/core/registries.js
 var $output = Symbol("ZodOutput");
 var $input = Symbol("ZodInput");
 
@@ -9524,7 +9528,7 @@ function registry() {
   return new $ZodRegistry;
 }
 var globalRegistry = /* @__PURE__ */ registry();
-// node_modules/zod/v4/core/api.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/core/api.js
 function _string(Class2, params) {
   return new Class2({
     type: "string",
@@ -10402,7 +10406,7 @@ function _stringFormat(Class2, format, fnOrRegex, _params = {}) {
   const inst = new Class2(def);
   return inst;
 }
-// node_modules/zod/v4/core/to-json-schema.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/core/to-json-schema.js
 class JSONSchemaGenerator {
   constructor(params) {
     this.counter = 0;
@@ -11206,9 +11210,9 @@ function isTransforming(_schema, _ctx) {
   }
   throw new Error(`Unknown schema type: ${def.type}`);
 }
-// node_modules/zod/v4/core/json-schema.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/core/json-schema.js
 var exports_json_schema = {};
-// node_modules/zod/v4/classic/iso.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/classic/iso.js
 var exports_iso = {};
 __export(exports_iso, {
   time: () => time2,
@@ -11249,7 +11253,7 @@ function duration2(params) {
   return _isoDuration(ZodISODuration, params);
 }
 
-// node_modules/zod/v4/classic/errors.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/classic/errors.js
 var initializer2 = (inst, issues) => {
   $ZodError.init(inst, issues);
   inst.name = "ZodError";
@@ -11284,7 +11288,7 @@ var ZodRealError = $constructor("ZodError", initializer2, {
   Parent: Error
 });
 
-// node_modules/zod/v4/classic/parse.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/classic/parse.js
 var parse3 = /* @__PURE__ */ _parse(ZodRealError);
 var parseAsync2 = /* @__PURE__ */ _parseAsync(ZodRealError);
 var safeParse2 = /* @__PURE__ */ _safeParse(ZodRealError);
@@ -11298,7 +11302,7 @@ var safeDecode2 = /* @__PURE__ */ _safeDecode(ZodRealError);
 var safeEncodeAsync2 = /* @__PURE__ */ _safeEncodeAsync(ZodRealError);
 var safeDecodeAsync2 = /* @__PURE__ */ _safeDecodeAsync(ZodRealError);
 
-// node_modules/zod/v4/classic/schemas.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/classic/schemas.js
 var ZodType = /* @__PURE__ */ $constructor("ZodType", (inst, def) => {
   $ZodType.init(inst, def);
   inst.def = def;
@@ -12273,7 +12277,7 @@ function json(params) {
 function preprocess(fn, schema) {
   return pipe(transform(fn), schema);
 }
-// node_modules/zod/v4/classic/compat.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/classic/compat.js
 var ZodIssueCode = {
   invalid_type: "invalid_type",
   too_big: "too_big",
@@ -12297,7 +12301,7 @@ function getErrorMap() {
 }
 var ZodFirstPartyTypeKind;
 (function(ZodFirstPartyTypeKind2) {})(ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}));
-// node_modules/zod/v4/classic/coerce.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/classic/coerce.js
 var exports_coerce = {};
 __export(exports_coerce, {
   string: () => string3,
@@ -12322,7 +12326,7 @@ function date4(params) {
   return _coercedDate(ZodDate, params);
 }
 
-// node_modules/zod/v4/classic/external.js
+// node_modules/@opencode-ai/plugin/node_modules/zod/v4/classic/external.js
 config(en_default());
 // node_modules/@opencode-ai/plugin/dist/tool.js
 function tool(input) {
@@ -12346,6 +12350,15 @@ var DEFAULT_LIST_LIMIT = 50;
 var DEFAULT_POLL_MS = 200;
 var BASE_DIR = join(homedir(), ".opencode-browser");
 var DEFAULT_DOWNLOADS_DIR = join(BASE_DIR, "downloads");
+function getAgentCapabilities() {
+  return {
+    profile_access: false,
+    headless: true,
+    tab_claims: false,
+    file_uploads: true,
+    downloads: true
+  };
+}
 function createJsonLineParser(onMessage) {
   let buffer = "";
   return (chunk) => {
@@ -12492,6 +12505,54 @@ function buildAgentTypeScript(selector, indexValue, text, clear) {
       return { ok: true };
     }
     return { ok: false, error: "Element is not typable" };
+  `);
+}
+function buildAgentFocusScript(selector, indexValue) {
+  const payload = { selector, index: indexValue };
+  return buildEvalScript(`
+    const payload = ${JSON.stringify(payload)};
+    let matches = [];
+    try {
+      matches = Array.from(document.querySelectorAll(payload.selector));
+    } catch {
+      return { ok: false, error: "Invalid selector" };
+    }
+    const element = matches[payload.index];
+    if (!element) return { ok: false, error: "Element not found" };
+    try {
+      element.scrollIntoView({ block: "center", inline: "center" });
+    } catch {}
+    try {
+      element.focus();
+    } catch {}
+    return { ok: true };
+  `);
+}
+function buildAgentHoverScript(selector, indexValue) {
+  const payload = { selector, index: indexValue };
+  return buildEvalScript(`
+    const payload = ${JSON.stringify(payload)};
+    let matches = [];
+    try {
+      matches = Array.from(document.querySelectorAll(payload.selector));
+    } catch {
+      return { ok: false, error: "Invalid selector" };
+    }
+    const element = matches[payload.index];
+    if (!element) return { ok: false, error: "Element not found" };
+    try {
+      element.scrollIntoView({ block: "center", inline: "center" });
+    } catch {}
+    const rect = element.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const opts = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y };
+    try {
+      element.dispatchEvent(new MouseEvent("mouseover", opts));
+      element.dispatchEvent(new MouseEvent("mouseenter", opts));
+      element.dispatchEvent(new MouseEvent("mousemove", opts));
+    } catch {}
+    return { ok: true };
   `);
 }
 function buildAgentSelectScript(selector, indexValue, value, label, optionIndex) {
@@ -12678,7 +12739,9 @@ function createAgentBackend(sessionId) {
       return DEFAULT_DOWNLOADS_DIR;
     return isAbsolute(raw) ? raw : resolve(process.cwd(), raw);
   })();
-  mkdirSync(downloadsDir, { recursive: true });
+  try {
+    mkdirSync(downloadsDir, { recursive: true });
+  } catch {}
   const downloads = [];
   function resolveDownloadPath(filename, urlValue) {
     let name = typeof filename === "string" ? filename.trim() : "";
@@ -12896,6 +12959,12 @@ function createAgentBackend(sessionId) {
         }
         return { content: { tabId: created.index, url: args.url, active: active !== false } };
       }
+      case "set_active_tab": {
+        if (!Number.isFinite(args.tabId))
+          throw new Error("tabId is required");
+        await agentCommand("tab_switch", { index: args.tabId });
+        return { content: { tabId: args.tabId, active: true } };
+      }
       case "close_tab": {
         const payload = {};
         if (Number.isFinite(args.tabId))
@@ -12910,6 +12979,24 @@ function createAgentBackend(sessionId) {
             throw new Error("URL is required");
           await agentCommand("navigate", { url: args.url });
           return { content: `Navigated to ${args.url}` };
+        });
+      }
+      case "back": {
+        return await withTab(args.tabId, async () => {
+          await agentCommand("back", {});
+          return { content: "Navigated back" };
+        });
+      }
+      case "forward": {
+        return await withTab(args.tabId, async () => {
+          await agentCommand("forward", {});
+          return { content: "Navigated forward" };
+        });
+      }
+      case "reload": {
+        return await withTab(args.tabId, async () => {
+          await agentCommand("reload", {});
+          return { content: "Reloaded tab" };
         });
       }
       case "download": {
@@ -12967,6 +13054,38 @@ function createAgentBackend(sessionId) {
           return { content: `Clicked ${args.selector}` };
         });
       }
+      case "hover": {
+        return await withTab(args.tabId, async () => {
+          if (!args.selector)
+            throw new Error("Selector is required");
+          const indexValue = Number.isFinite(args.index) ? args.index : 0;
+          if (indexValue > 0) {
+            await agentCommand("nth", { selector: args.selector, index: indexValue, subaction: "hover" });
+          } else if (indexValue < 0) {
+            const result = await agentEvaluate(buildAgentHoverScript(args.selector, indexValue));
+            if (!result?.ok)
+              throw new Error(result?.error || "Hover failed");
+          } else {
+            await agentCommand("hover", { selector: args.selector });
+          }
+          return { content: `Hovered ${args.selector}` };
+        });
+      }
+      case "focus": {
+        return await withTab(args.tabId, async () => {
+          if (!args.selector)
+            throw new Error("Selector is required");
+          const indexValue = Number.isFinite(args.index) ? args.index : 0;
+          if (indexValue === 0) {
+            await agentCommand("focus", { selector: args.selector });
+          } else {
+            const result = await agentEvaluate(buildAgentFocusScript(args.selector, indexValue));
+            if (!result?.ok)
+              throw new Error(result?.error || "Focus failed");
+          }
+          return { content: `Focused ${args.selector}` };
+        });
+      }
       case "type": {
         return await withTab(args.tabId, async () => {
           if (!args.selector)
@@ -12987,6 +13106,28 @@ function createAgentBackend(sessionId) {
             }
           }
           return { content: `Typed "${args.text}" into ${args.selector}` };
+        });
+      }
+      case "key": {
+        return await withTab(args.tabId, async () => {
+          if (!args.key)
+            throw new Error("key is required");
+          const keyValue = String(args.key);
+          const selector = typeof args.selector === "string" ? args.selector : undefined;
+          const indexValue = Number.isFinite(args.index) ? args.index : 0;
+          if (selector) {
+            if (indexValue === 0) {
+              await agentCommand("press", { key: keyValue, selector });
+            } else {
+              const result = await agentEvaluate(buildAgentFocusScript(selector, indexValue));
+              if (!result?.ok)
+                throw new Error(result?.error || "Focus failed");
+              await agentCommand("press", { key: keyValue });
+            }
+          } else {
+            await agentCommand("press", { key: keyValue });
+          }
+          return { content: `Pressed ${keyValue}` };
         });
       }
       case "select": {
@@ -13094,7 +13235,9 @@ function createAgentBackend(sessionId) {
       connection,
       connected,
       error: error45,
-      agentBrowserVersion: getAgentPackageVersion()
+      agentBrowserVersion: getAgentPackageVersion(),
+      capabilities: getAgentCapabilities(),
+      active_session: session
     };
   }
   return {
@@ -13117,6 +13260,7 @@ var __filename2 = fileURLToPath(import.meta.url);
 var __dirname2 = dirname2(__filename2);
 var PACKAGE_JSON_PATH = join2(__dirname2, "..", "package.json");
 var cachedVersion = null;
+var cachedName = null;
 function getPackageVersion() {
   if (cachedVersion)
     return cachedVersion;
@@ -13130,10 +13274,25 @@ function getPackageVersion() {
   cachedVersion = "unknown";
   return cachedVersion;
 }
+function getPackageName() {
+  if (cachedName)
+    return cachedName;
+  try {
+    const pkg = JSON.parse(readFileSync2(PACKAGE_JSON_PATH, "utf8"));
+    if (typeof pkg?.name === "string") {
+      cachedName = pkg.name;
+      return cachedName;
+    }
+  } catch {}
+  cachedName = "@arjun-ingole/opencode-browser";
+  return cachedName;
+}
 var { schema } = tool;
 var BASE_DIR2 = join2(homedir2(), ".opencode-browser");
+var CONFIG_PATH = join2(BASE_DIR2, "config.json");
 var SOCKET_PATH = getBrokerSocketPath();
 var LOG_PATH = join2(BASE_DIR2, "plugin.log");
+var PACKAGE_INSTALL_SPEC = "github:Arjun-Ingole/opencode-browser";
 function getSafePipeName() {
   try {
     const username = userInfo().username || "user";
@@ -13231,14 +13390,73 @@ async function connectToBroker() {
 async function sleep2(ms) {
   return await new Promise((r) => setTimeout(r, ms));
 }
-var BACKEND_MODE = (process.env.OPENCODE_BROWSER_BACKEND ?? process.env.OPENCODE_BROWSER_MODE ?? "extension").toLowerCase().trim();
-var USE_AGENT_BACKEND = ["agent", "agent-browser", "agentbrowser"].includes(BACKEND_MODE);
+function normalizeBackendMode(raw) {
+  const value = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (!value)
+    return null;
+  if (value === "auto")
+    return "auto";
+  if (["agent", "agent-browser", "agentbrowser"].includes(value))
+    return "agent";
+  if (["native", "extension", "chrome"].includes(value))
+    return "native";
+  return null;
+}
+function readPersistedConfig() {
+  try {
+    if (!existsSync(CONFIG_PATH))
+      return null;
+    return JSON.parse(readFileSync2(CONFIG_PATH, "utf8"));
+  } catch {
+    return null;
+  }
+}
+function getConfiguredBackendPreference() {
+  const envRaw = process.env.OPENCODE_BROWSER_BACKEND ?? process.env.OPENCODE_BROWSER_MODE ?? null;
+  const envMode = normalizeBackendMode(envRaw);
+  if (envMode) {
+    return { mode: envMode, source: "env", raw: envRaw };
+  }
+  const config2 = readPersistedConfig();
+  const configRaw = typeof config2?.browser?.backend === "string" ? config2.browser.backend : typeof config2?.backend === "string" ? config2.backend : null;
+  const configMode = normalizeBackendMode(configRaw);
+  if (configMode) {
+    return { mode: configMode, source: "config", raw: configRaw };
+  }
+  return { mode: "auto", source: "default", raw: null };
+}
+function getNativeCapabilities() {
+  return {
+    profile_access: true,
+    headless: false,
+    tab_claims: true,
+    file_uploads: "limited",
+    downloads: true
+  };
+}
+function getFallbackBackendMessage(backend) {
+  return backend === "agent" ? "Set OPENCODE_BROWSER_BACKEND=agent or `opencode-browser backend agent` after agent-browser is installed." : "Set OPENCODE_BROWSER_BACKEND=native or `opencode-browser backend native` after the extension is connected.";
+}
+function nativeSetupSteps() {
+  return [
+    `Run \`npx ${PACKAGE_INSTALL_SPEC} install\` to install the broker and native host.`,
+    "Load and pin the unpacked extension in chrome://extensions.",
+    "Click the OpenCode Browser extension icon so the native host connection is established."
+  ];
+}
+function agentSetupSteps() {
+  return [
+    `Run \`npx ${PACKAGE_INSTALL_SPEC} agent-install\` or install \`agent-browser\` globally.`,
+    "Ensure the agent-browser daemon or gateway is reachable.",
+    "Set OPENCODE_BROWSER_BACKEND=agent to force it, or use auto mode to prefer it when available."
+  ];
+}
 var socket = null;
 var lastBrokerError = null;
 var sessionId = Math.random().toString(36).slice(2);
 var reqId = 0;
 var pending = new Map;
-var agentBackend = USE_AGENT_BACKEND ? createAgentBackend(sessionId) : null;
+var agentBackend = createAgentBackend(sessionId);
 async function ensureBrokerSocket() {
   if (socket && !socket.destroyed)
     return socket;
@@ -13256,7 +13474,7 @@ async function ensureBrokerSocket() {
   }
   if (!socket || socket.destroyed) {
     const errorMessage = lastBrokerError?.message ? ` (${lastBrokerError.message})` : "";
-    throw new Error(`Could not connect to local broker at ${SOCKET_PATH}${errorMessage}. ` + "Run `npx @different-ai/opencode-browser install` and ensure the extension is loaded.");
+    throw new Error(`Could not connect to local broker at ${SOCKET_PATH}${errorMessage}. ` + `Run \`npx ${PACKAGE_INSTALL_SPEC} install\` and ensure the extension is loaded.`);
   }
   socket.setNoDelay(true);
   logDebug(`broker connected socket=${SOCKET_PATH}`);
@@ -13296,12 +13514,6 @@ async function brokerRequest(op, payload) {
     }, 60000);
   });
 }
-async function brokerOnlyRequest(op, payload) {
-  if (USE_AGENT_BACKEND) {
-    throw new Error("Tab claims are not supported with agent-browser backend");
-  }
-  return await brokerRequest(op, payload);
-}
 function toolResultText(data, fallback) {
   if (typeof data?.content === "string")
     return data.content;
@@ -13311,45 +13523,235 @@ function toolResultText(data, fallback) {
     return JSON.stringify(data.content);
   return fallback;
 }
-async function toolRequest(toolName, args) {
-  if (USE_AGENT_BACKEND) {
-    if (!agentBackend) {
-      throw new Error("Agent backend unavailable: configuration failed to initialize");
+async function probeNativeBackend() {
+  try {
+    const data = await brokerRequest("status", {});
+    const connected = !!data?.broker && !!data?.hostConnected;
+    const session = data?.session ?? null;
+    return {
+      backend: "extension",
+      connected,
+      broker: !!data?.broker,
+      hostConnected: !!data?.hostConnected,
+      claims: Array.isArray(data?.claims) ? data.claims : [],
+      leaseTtlMs: data?.leaseTtlMs ?? null,
+      session,
+      capabilities: getNativeCapabilities(),
+      active_session: session?.sessionId ?? sessionId,
+      error: connected ? undefined : "Chrome extension is not connected (native host offline).",
+      setup: connected ? undefined : nativeSetupSteps()
+    };
+  } catch (error45) {
+    const message = error45 instanceof Error ? error45.message : String(error45);
+    return {
+      backend: "extension",
+      connected: false,
+      broker: false,
+      hostConnected: false,
+      claims: [],
+      leaseTtlMs: null,
+      session: null,
+      capabilities: getNativeCapabilities(),
+      active_session: sessionId,
+      error: message,
+      setup: nativeSetupSteps()
+    };
+  }
+}
+async function probeAgentBackend() {
+  const status = await agentBackend.status();
+  return {
+    ...status,
+    setup: status.connected ? undefined : agentSetupSteps()
+  };
+}
+async function resolveBackendSelection() {
+  const preference = getConfiguredBackendPreference();
+  const agent = await probeAgentBackend();
+  const native = await probeNativeBackend();
+  if (preference.mode === "auto") {
+    if (agent.connected) {
+      return {
+        requestedMode: "auto",
+        requestedBy: preference.source,
+        effectiveBackend: "agent",
+        selectionReason: "auto-preferred-agent",
+        selected: agent,
+        alternate: native,
+        probes: { agent, native }
+      };
     }
+    if (native.connected) {
+      return {
+        requestedMode: "auto",
+        requestedBy: preference.source,
+        effectiveBackend: "native",
+        selectionReason: "auto-fallback-native",
+        selected: native,
+        alternate: agent,
+        probes: { agent, native }
+      };
+    }
+    return {
+      requestedMode: "auto",
+      requestedBy: preference.source,
+      effectiveBackend: null,
+      selectionReason: "auto-no-backend-available",
+      selected: null,
+      alternate: null,
+      probes: { agent, native }
+    };
+  }
+  if (preference.mode === "agent") {
+    if (agent.connected) {
+      return {
+        requestedMode: "agent",
+        requestedBy: preference.source,
+        effectiveBackend: "agent",
+        selectionReason: "explicit-agent",
+        selected: agent,
+        alternate: native,
+        probes: { agent, native }
+      };
+    }
+    return {
+      requestedMode: "agent",
+      requestedBy: preference.source,
+      effectiveBackend: null,
+      selectionReason: "requested-agent-unavailable",
+      selected: null,
+      alternate: native.connected ? native : null,
+      probes: { agent, native }
+    };
+  }
+  if (native.connected) {
+    return {
+      requestedMode: "native",
+      requestedBy: preference.source,
+      effectiveBackend: "native",
+      selectionReason: "explicit-native",
+      selected: native,
+      alternate: agent,
+      probes: { agent, native }
+    };
+  }
+  return {
+    requestedMode: "native",
+    requestedBy: preference.source,
+    effectiveBackend: null,
+    selectionReason: "requested-native-unavailable",
+    selected: null,
+    alternate: agent.connected ? agent : null,
+    probes: { agent, native }
+  };
+}
+function formatSelectionError(selection) {
+  if (selection.requestedMode === "auto") {
+    const lines2 = [
+      "No browser backend is available.",
+      `Agent Browser: ${selection.probes.agent.error || "unavailable"}`,
+      `Native Browser: ${selection.probes.native.error || "unavailable"}`,
+      "",
+      "Agent setup:",
+      ...agentSetupSteps().map((step) => `- ${step}`),
+      "",
+      "Native setup:",
+      ...nativeSetupSteps().map((step) => `- ${step}`)
+    ];
+    return new Error(lines2.join(`
+`));
+  }
+  const requestedLabel = selection.requestedMode === "agent" ? "Agent Browser" : "Native Browser";
+  const requestedProbe = selection.requestedMode === "agent" ? selection.probes.agent : selection.probes.native;
+  const fallbackProbe = selection.requestedMode === "agent" ? selection.probes.native : selection.probes.agent;
+  const fallbackMode = selection.requestedMode === "agent" ? "native" : "agent";
+  const lines = [
+    `${requestedLabel} is unavailable.`,
+    requestedProbe.error || "The selected backend could not be reached."
+  ];
+  if (fallbackProbe.connected) {
+    lines.push("", `Fallback available: ${fallbackProbe.backend}.`, getFallbackBackendMessage(fallbackMode), "Use `browser_status` to inspect backend availability and selection details.");
+  } else {
+    lines.push("", "No fallback backend is currently available.");
+  }
+  const setup = selection.requestedMode === "agent" ? agentSetupSteps() : nativeSetupSteps();
+  lines.push("", "Setup:", ...setup.map((step) => `- ${step}`));
+  return new Error(lines.join(`
+`));
+}
+async function statusRequest() {
+  const selection = await resolveBackendSelection();
+  const selected = selection.selected;
+  const alternate = selection.alternate;
+  return {
+    connected: !!selected?.connected,
+    backend: selection.effectiveBackend === "agent" ? "agent-browser" : selection.effectiveBackend === "native" ? "extension" : null,
+    requestedBackend: selection.requestedMode,
+    selectionMode: selection.requestedMode,
+    selectionSource: selection.requestedBy,
+    selectionReason: selection.selectionReason,
+    capabilities: selected?.capabilities ?? null,
+    active_session: selected?.active_session ?? null,
+    fallbackAvailable: !!alternate?.connected,
+    fallbackBackend: alternate?.connected ? alternate.backend : null,
+    pluginVersion: getPackageVersion(),
+    agentBrowserVersion: agentBackend.getVersion(),
+    backends: {
+      agent: selection.probes.agent,
+      native: selection.probes.native
+    }
+  };
+}
+async function toolRequest(toolName, args) {
+  const selection = await resolveBackendSelection();
+  if (!selection.effectiveBackend || !selection.selected) {
+    throw formatSelectionError(selection);
+  }
+  if (selection.effectiveBackend === "agent") {
     return await agentBackend.requestTool(toolName, args);
   }
   return await brokerRequest("tool", { tool: toolName, args });
 }
-async function statusRequest() {
-  if (USE_AGENT_BACKEND) {
-    if (!agentBackend) {
-      return {
-        backend: "agent-browser",
-        connected: false,
-        error: "Agent backend unavailable: configuration failed to initialize"
-      };
+async function brokerOnlyRequest(op, payload) {
+  const selection = await resolveBackendSelection();
+  if (selection.effectiveBackend !== "native") {
+    const lines = [
+      "This tool is only available on the native extension backend.",
+      `Current selection: ${selection.effectiveBackend === "agent" ? "agent-browser" : selection.requestedMode === "auto" ? "none available" : selection.requestedMode}`
+    ];
+    if (selection.probes.native.connected) {
+      lines.push("Switch to the native backend with OPENCODE_BROWSER_BACKEND=native or `opencode-browser backend native`.");
+    } else {
+      lines.push(...nativeSetupSteps().map((step) => `- ${step}`));
     }
-    return await agentBackend.status();
+    throw new Error(lines.join(`
+`));
   }
-  return await brokerRequest("status", {});
+  return await brokerRequest(op, payload);
 }
-var plugin = async (ctx) => {
+var plugin = async () => {
   return {
     tool: {
       browser_debug: tool({
-        description: "Debug plugin loading and connection status.",
+        description: "Debug plugin loading, backend preference, and connection status.",
         args: {},
-        async execute(args, ctx2) {
+        async execute() {
+          const preference = getConfiguredBackendPreference();
+          const status = await statusRequest();
           const lines = [
             "loaded: true",
             `sessionId: ${sessionId}`,
             `pid: ${process.pid}`,
-            `backend: ${USE_AGENT_BACKEND ? "agent-browser" : "extension"}`,
-            `brokerSocket: ${SOCKET_PATH}`,
-            `agentSession: ${agentBackend?.session ?? ""}`,
-            `agentConnection: ${JSON.stringify(agentBackend?.connection ?? null)}`,
-            `agentBrowserVersion: ${agentBackend?.getVersion?.() ?? ""}`,
             `pluginVersion: ${getPackageVersion()}`,
+            `configPath: ${CONFIG_PATH}`,
+            `requestedBackend: ${preference.mode}`,
+            `selectionSource: ${preference.source}`,
+            `effectiveBackend: ${status.backend ?? "none"}`,
+            `selectionReason: ${status.selectionReason}`,
+            `brokerSocket: ${SOCKET_PATH}`,
+            `agentSession: ${agentBackend.session}`,
+            `agentConnection: ${JSON.stringify(agentBackend.connection)}`,
+            `agentBrowserVersion: ${agentBackend.getVersion() ?? ""}`,
             `timestamp: ${new Date().toISOString()}`
           ];
           return lines.join(`
@@ -13357,23 +13759,25 @@ var plugin = async (ctx) => {
         }
       }),
       browser_version: tool({
-        description: "Return the installed @different-ai/opencode-browser plugin version.",
+        description: "Return the installed OpenCode Browser plugin version.",
         args: {},
-        async execute(args, ctx2) {
+        async execute() {
+          const preference = getConfiguredBackendPreference();
           return JSON.stringify({
-            name: "@different-ai/opencode-browser",
+            name: getPackageName(),
             version: getPackageVersion(),
             sessionId,
             pid: process.pid,
-            backend: USE_AGENT_BACKEND ? "agent-browser" : "extension",
-            agentBrowserVersion: agentBackend?.getVersion?.() ?? null
+            requestedBackend: preference.mode,
+            selectionSource: preference.source,
+            agentBrowserVersion: agentBackend.getVersion()
           });
         }
       }),
       browser_status: tool({
-        description: "Check backend connection status and current tab claims.",
+        description: "Check backend selection, connection status, capabilities, and current tab claims.",
         args: {},
-        async execute(args, ctx2) {
+        async execute() {
           const data = await statusRequest();
           return JSON.stringify(data);
         }
@@ -13381,7 +13785,7 @@ var plugin = async (ctx) => {
       browser_get_tabs: tool({
         description: "List all open browser tabs",
         args: {},
-        async execute(args, ctx2) {
+        async execute() {
           const data = await toolRequest("get_tabs", {});
           return toolResultText(data, "ok");
         }
@@ -13389,7 +13793,7 @@ var plugin = async (ctx) => {
       browser_list_claims: tool({
         description: "List tab ownership claims",
         args: {},
-        async execute(args, ctx2) {
+        async execute() {
           const data = await brokerOnlyRequest("list_claims", {});
           return JSON.stringify(data);
         }
@@ -13400,7 +13804,7 @@ var plugin = async (ctx) => {
           tabId: schema.number(),
           force: schema.boolean().optional()
         },
-        async execute({ tabId, force }, ctx2) {
+        async execute({ tabId, force }) {
           const data = await brokerOnlyRequest("claim_tab", { tabId, force });
           return JSON.stringify(data);
         }
@@ -13410,7 +13814,7 @@ var plugin = async (ctx) => {
         args: {
           tabId: schema.number()
         },
-        async execute({ tabId }, ctx2) {
+        async execute({ tabId }) {
           const data = await brokerOnlyRequest("release_tab", { tabId });
           return JSON.stringify(data);
         }
@@ -13421,9 +13825,19 @@ var plugin = async (ctx) => {
           url: schema.string().optional(),
           active: schema.boolean().optional()
         },
-        async execute({ url: url2, active }, ctx2) {
+        async execute({ url: url2, active }) {
           const data = await toolRequest("open_tab", { url: url2, active });
           return toolResultText(data, "Opened new tab");
+        }
+      }),
+      browser_set_active_tab: tool({
+        description: "Switch the active browser tab to a tab owned by this session.",
+        args: {
+          tabId: schema.number()
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("set_active_tab", { tabId });
+          return toolResultText(data, `Activated tab ${tabId}`);
         }
       }),
       browser_close_tab: tool({
@@ -13431,7 +13845,7 @@ var plugin = async (ctx) => {
         args: {
           tabId: schema.number().optional()
         },
-        async execute({ tabId }, ctx2) {
+        async execute({ tabId }) {
           const data = await toolRequest("close_tab", { tabId });
           return toolResultText(data, "Closed tab");
         }
@@ -13442,9 +13856,39 @@ var plugin = async (ctx) => {
           url: schema.string(),
           tabId: schema.number().optional()
         },
-        async execute({ url: url2, tabId }, ctx2) {
+        async execute({ url: url2, tabId }) {
           const data = await toolRequest("navigate", { url: url2, tabId });
           return toolResultText(data, `Navigated to ${url2}`);
+        }
+      }),
+      browser_back: tool({
+        description: "Navigate back in the current tab history.",
+        args: {
+          tabId: schema.number().optional()
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("back", { tabId });
+          return toolResultText(data, "Navigated back");
+        }
+      }),
+      browser_forward: tool({
+        description: "Navigate forward in the current tab history.",
+        args: {
+          tabId: schema.number().optional()
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("forward", { tabId });
+          return toolResultText(data, "Navigated forward");
+        }
+      }),
+      browser_reload: tool({
+        description: "Reload the current tab.",
+        args: {
+          tabId: schema.number().optional()
+        },
+        async execute({ tabId }) {
+          const data = await toolRequest("reload", { tabId });
+          return toolResultText(data, "Reloaded tab");
         }
       }),
       browser_click: tool({
@@ -13456,9 +13900,37 @@ var plugin = async (ctx) => {
           timeoutMs: schema.number().optional(),
           pollMs: schema.number().optional()
         },
-        async execute({ selector, index, tabId, timeoutMs, pollMs }, ctx2) {
+        async execute({ selector, index, tabId, timeoutMs, pollMs }) {
           const data = await toolRequest("click", { selector, index, tabId, timeoutMs, pollMs });
           return toolResultText(data, `Clicked ${selector}`);
+        }
+      }),
+      browser_hover: tool({
+        description: "Hover an element on the page using a selector.",
+        args: {
+          selector: schema.string(),
+          index: schema.number().optional(),
+          tabId: schema.number().optional(),
+          timeoutMs: schema.number().optional(),
+          pollMs: schema.number().optional()
+        },
+        async execute({ selector, index, tabId, timeoutMs, pollMs }) {
+          const data = await toolRequest("hover", { selector, index, tabId, timeoutMs, pollMs });
+          return toolResultText(data, `Hovered ${selector}`);
+        }
+      }),
+      browser_focus: tool({
+        description: "Focus an element on the page using a selector.",
+        args: {
+          selector: schema.string(),
+          index: schema.number().optional(),
+          tabId: schema.number().optional(),
+          timeoutMs: schema.number().optional(),
+          pollMs: schema.number().optional()
+        },
+        async execute({ selector, index, tabId, timeoutMs, pollMs }) {
+          const data = await toolRequest("focus", { selector, index, tabId, timeoutMs, pollMs });
+          return toolResultText(data, `Focused ${selector}`);
         }
       }),
       browser_type: tool({
@@ -13472,9 +13944,24 @@ var plugin = async (ctx) => {
           timeoutMs: schema.number().optional(),
           pollMs: schema.number().optional()
         },
-        async execute({ selector, text, clear, index, tabId, timeoutMs, pollMs }, ctx2) {
+        async execute({ selector, text, clear, index, tabId, timeoutMs, pollMs }) {
           const data = await toolRequest("type", { selector, text, clear, index, tabId, timeoutMs, pollMs });
           return toolResultText(data, `Typed "${text}" into ${selector}`);
+        }
+      }),
+      browser_key: tool({
+        description: "Press a keyboard key or chord, optionally targeting a selector first.",
+        args: {
+          key: schema.string(),
+          selector: schema.string().optional(),
+          index: schema.number().optional(),
+          tabId: schema.number().optional(),
+          timeoutMs: schema.number().optional(),
+          pollMs: schema.number().optional()
+        },
+        async execute({ key, selector, index, tabId, timeoutMs, pollMs }) {
+          const data = await toolRequest("key", { key, selector, index, tabId, timeoutMs, pollMs });
+          return toolResultText(data, `Pressed ${key}`);
         }
       }),
       browser_select: tool({
@@ -13489,7 +13976,7 @@ var plugin = async (ctx) => {
           timeoutMs: schema.number().optional(),
           pollMs: schema.number().optional()
         },
-        async execute({ selector, value, label, optionIndex, index, tabId, timeoutMs, pollMs }, ctx2) {
+        async execute({ selector, value, label, optionIndex, index, tabId, timeoutMs, pollMs }) {
           const data = await toolRequest("select", { selector, value, label, optionIndex, index, tabId, timeoutMs, pollMs });
           const summary = value ?? label ?? (optionIndex != null ? String(optionIndex) : "option");
           return toolResultText(data, `Selected ${summary} in ${selector}`);
@@ -13500,7 +13987,7 @@ var plugin = async (ctx) => {
         args: {
           tabId: schema.number().optional()
         },
-        async execute({ tabId }, ctx2) {
+        async execute({ tabId }) {
           const data = await toolRequest("screenshot", { tabId });
           return toolResultText(data, "Screenshot failed");
         }
@@ -13510,7 +13997,7 @@ var plugin = async (ctx) => {
         args: {
           tabId: schema.number().optional()
         },
-        async execute({ tabId }, ctx2) {
+        async execute({ tabId }) {
           const data = await toolRequest("snapshot", { tabId });
           return toolResultText(data, "Snapshot failed");
         }
@@ -13525,7 +14012,7 @@ var plugin = async (ctx) => {
           timeoutMs: schema.number().optional(),
           pollMs: schema.number().optional()
         },
-        async execute({ selector, x, y, tabId, timeoutMs, pollMs }, ctx2) {
+        async execute({ selector, x, y, tabId, timeoutMs, pollMs }) {
           const data = await toolRequest("scroll", { selector, x, y, tabId, timeoutMs, pollMs });
           return toolResultText(data, "Scrolled");
         }
@@ -13536,7 +14023,7 @@ var plugin = async (ctx) => {
           ms: schema.number().optional(),
           tabId: schema.number().optional()
         },
-        async execute({ ms, tabId }, ctx2) {
+        async execute({ ms, tabId }) {
           const data = await toolRequest("wait", { ms, tabId });
           return toolResultText(data, "Waited");
         }
@@ -13556,7 +14043,7 @@ var plugin = async (ctx) => {
           flags: schema.string().optional(),
           tabId: schema.number().optional()
         },
-        async execute({ selector, mode, attribute, property, index, limit, timeoutMs, pollMs, pattern, flags, tabId }, ctx2) {
+        async execute({ selector, mode, attribute, property, index, limit, timeoutMs, pollMs, pattern, flags, tabId }) {
           const data = await toolRequest("query", {
             selector,
             mode,
@@ -13588,7 +14075,7 @@ var plugin = async (ctx) => {
           timeoutMs: schema.number().optional(),
           pollMs: schema.number().optional()
         },
-        async execute({ url: url2, selector, filename, conflictAction, saveAs, wait, downloadTimeoutMs, index, tabId, timeoutMs, pollMs }, ctx2) {
+        async execute({ url: url2, selector, filename, conflictAction, saveAs, wait, downloadTimeoutMs, index, tabId, timeoutMs, pollMs }) {
           const data = await toolRequest("download", {
             url: url2,
             selector,
@@ -13611,7 +14098,7 @@ var plugin = async (ctx) => {
           limit: schema.number().optional(),
           state: schema.string().optional()
         },
-        async execute({ limit, state }, ctx2) {
+        async execute({ limit, state }) {
           const data = await toolRequest("list_downloads", { limit, state });
           return toolResultText(data, "[]");
         }
@@ -13628,19 +14115,26 @@ var plugin = async (ctx) => {
           timeoutMs: schema.number().optional(),
           pollMs: schema.number().optional()
         },
-        async execute({ selector, filePath, fileName, mimeType, index, tabId, timeoutMs, pollMs }, ctx2) {
-          if (USE_AGENT_BACKEND) {
-            const data2 = await toolRequest("set_file_input", { selector, filePath, tabId, index, timeoutMs, pollMs });
+        async execute({ selector, filePath, fileName, mimeType, index, tabId, timeoutMs, pollMs }) {
+          const selection = await resolveBackendSelection();
+          if (selection.effectiveBackend === "agent") {
+            const data2 = await agentBackend.requestTool("set_file_input", { selector, filePath, tabId, index, timeoutMs, pollMs });
             return toolResultText(data2, "Set file input");
           }
+          if (selection.effectiveBackend !== "native") {
+            throw formatSelectionError(selection);
+          }
           const file2 = buildFileUploadPayload(filePath, fileName, mimeType);
-          const data = await toolRequest("set_file_input", {
-            selector,
-            tabId,
-            index,
-            timeoutMs,
-            pollMs,
-            files: [file2]
+          const data = await brokerRequest("tool", {
+            tool: "set_file_input",
+            args: {
+              selector,
+              tabId,
+              index,
+              timeoutMs,
+              pollMs,
+              files: [file2]
+            }
           });
           return toolResultText(data, "Set file input");
         }
@@ -13657,7 +14151,7 @@ var plugin = async (ctx) => {
           timeoutMs: schema.number().optional(),
           pollMs: schema.number().optional()
         },
-        async execute({ selector, index, duration: duration3, color, showInfo, tabId, timeoutMs, pollMs }, ctx2) {
+        async execute({ selector, index, duration: duration3, color, showInfo, tabId, timeoutMs, pollMs }) {
           const data = await toolRequest("highlight", {
             selector,
             index,
@@ -13678,7 +14172,7 @@ var plugin = async (ctx) => {
           clear: schema.boolean().optional(),
           filter: schema.string().optional()
         },
-        async execute({ tabId, clear, filter }, ctx2) {
+        async execute({ tabId, clear, filter }) {
           const data = await toolRequest("console", { tabId, clear, filter });
           return toolResultText(data, "[]");
         }
@@ -13689,7 +14183,7 @@ var plugin = async (ctx) => {
           tabId: schema.number().optional(),
           clear: schema.boolean().optional()
         },
-        async execute({ tabId, clear }, ctx2) {
+        async execute({ tabId, clear }) {
           const data = await toolRequest("errors", { tabId, clear });
           return toolResultText(data, "[]");
         }

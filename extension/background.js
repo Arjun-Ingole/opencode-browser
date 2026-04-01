@@ -233,7 +233,7 @@ async function connect() {
       if (err?.message) {
         connectionAttempts++
         if (connectionAttempts === 1) {
-          console.log("[OpenCode] Native host not available. Run: npx @different-ai/opencode-browser install")
+          console.log("[OpenCode] Native host not available. Run: npx github:Arjun-Ingole/opencode-browser install")
         } else if (connectionAttempts % 20 === 0) {
           console.log("[OpenCode] Still waiting for native host...")
         }
@@ -295,10 +295,17 @@ async function executeTool(toolName, args) {
     get_active_tab: toolGetActiveTab,
     get_tabs: toolGetTabs,
     open_tab: toolOpenTab,
+    set_active_tab: toolSetActiveTab,
     close_tab: toolCloseTab,
     navigate: toolNavigate,
+    back: toolBack,
+    forward: toolForward,
+    reload: toolReload,
     click: toolClick,
+    hover: toolHover,
+    focus: toolFocus,
     type: toolType,
+    key: toolKey,
     select: toolSelect,
     screenshot: toolScreenshot,
     snapshot: toolSnapshot,
@@ -326,6 +333,170 @@ async function getActiveTab() {
 
 async function getTabById(tabId) {
   return tabId ? await chrome.tabs.get(tabId) : await getActiveTab()
+}
+
+async function waitForTabStatusComplete(tabId, timeoutMs = 10000) {
+  return await new Promise((resolve) => {
+    let done = false
+
+    const finish = () => {
+      if (done) return
+      done = true
+      chrome.tabs.onUpdated.removeListener(onUpdated)
+      if (timer) clearTimeout(timer)
+      resolve()
+    }
+
+    const onUpdated = (updatedTabId, info) => {
+      if (updatedTabId === tabId && info.status === "complete") {
+        finish()
+      }
+    }
+
+    const timer = timeoutMs
+      ? setTimeout(() => {
+          finish()
+        }, timeoutMs)
+      : null
+
+    chrome.tabs.onUpdated.addListener(onUpdated)
+    chrome.tabs.get(tabId).then((tab) => {
+      if (tab?.status === "complete") finish()
+    }).catch(() => {
+      finish()
+    })
+  })
+}
+
+function keyTokenDescriptor(token, modifiers) {
+  const raw = String(token || "").trim()
+  if (!raw) throw new Error("key is required")
+
+  const specials = {
+    enter: { key: "Enter", code: "Enter", keyCode: 13 },
+    tab: { key: "Tab", code: "Tab", keyCode: 9 },
+    escape: { key: "Escape", code: "Escape", keyCode: 27 },
+    esc: { key: "Escape", code: "Escape", keyCode: 27 },
+    backspace: { key: "Backspace", code: "Backspace", keyCode: 8 },
+    delete: { key: "Delete", code: "Delete", keyCode: 46 },
+    space: { key: " ", code: "Space", keyCode: 32, text: " " },
+    " ": { key: " ", code: "Space", keyCode: 32, text: " " },
+    arrowup: { key: "ArrowUp", code: "ArrowUp", keyCode: 38 },
+    arrowdown: { key: "ArrowDown", code: "ArrowDown", keyCode: 40 },
+    arrowleft: { key: "ArrowLeft", code: "ArrowLeft", keyCode: 37 },
+    arrowright: { key: "ArrowRight", code: "ArrowRight", keyCode: 39 },
+    home: { key: "Home", code: "Home", keyCode: 36 },
+    end: { key: "End", code: "End", keyCode: 35 },
+    pageup: { key: "PageUp", code: "PageUp", keyCode: 33 },
+    pagedown: { key: "PageDown", code: "PageDown", keyCode: 34 },
+  }
+
+  const special = specials[raw.toLowerCase()]
+  if (special) {
+    if (modifiers) return { ...special, text: undefined }
+    return special
+  }
+
+  if (/^[a-z]$/i.test(raw)) {
+    const upper = raw.toUpperCase()
+    const useUpper = !!(modifiers & 8)
+    const key = useUpper ? upper : upper.toLowerCase()
+    return {
+      key,
+      code: `Key${upper}`,
+      keyCode: upper.charCodeAt(0),
+      text: modifiers && modifiers !== 8 ? undefined : key,
+    }
+  }
+
+  if (/^[0-9]$/.test(raw)) {
+    return {
+      key: raw,
+      code: `Digit${raw}`,
+      keyCode: raw.charCodeAt(0),
+      text: modifiers ? undefined : raw,
+    }
+  }
+
+  if (raw.length === 1) {
+    const keyCode = raw.toUpperCase().charCodeAt(0)
+    return {
+      key: raw,
+      code: raw,
+      keyCode,
+      text: modifiers ? undefined : raw,
+    }
+  }
+
+  return {
+    key: raw,
+    code: raw,
+    keyCode: raw.toUpperCase().charCodeAt(0) || 0,
+    text: undefined,
+  }
+}
+
+function parseKeyChord(rawKey) {
+  const text = String(rawKey || "").trim()
+  if (!text) throw new Error("key is required")
+  const parts = text.split("+").map((part) => part.trim()).filter(Boolean)
+  if (!parts.length) throw new Error("key is required")
+
+  let modifiers = 0
+  let keyToken = parts[parts.length - 1]
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i].toLowerCase()
+    if (part === "alt" || part === "option") modifiers |= 1
+    else if (part === "ctrl" || part === "control") modifiers |= 2
+    else if (part === "meta" || part === "cmd" || part === "command") modifiers |= 4
+    else if (part === "shift") modifiers |= 8
+    else keyToken = parts.slice(i).join("+")
+  }
+
+  const descriptor = keyTokenDescriptor(keyToken, modifiers)
+  return { ...descriptor, modifiers }
+}
+
+async function dispatchDebuggerKey(tabId, rawKey) {
+  const state = await ensureDebuggerAttached(tabId)
+  if (!state.attached) {
+    throw new Error(state.unavailableReason || "Debugger is not available for keyboard input.")
+  }
+
+  const descriptor = parseKeyChord(rawKey)
+  const basePayload = {
+    key: descriptor.key,
+    code: descriptor.code,
+    windowsVirtualKeyCode: descriptor.keyCode,
+    nativeVirtualKeyCode: descriptor.keyCode,
+    modifiers: descriptor.modifiers,
+  }
+
+  if (descriptor.text) {
+    await chrome.debugger.sendCommand({ tabId }, "Input.dispatchKeyEvent", {
+      type: "keyDown",
+      text: descriptor.text,
+      unmodifiedText: descriptor.text,
+      ...basePayload,
+    })
+    await chrome.debugger.sendCommand({ tabId }, "Input.dispatchKeyEvent", {
+      type: "char",
+      text: descriptor.text,
+      unmodifiedText: descriptor.text,
+      ...basePayload,
+    })
+  } else {
+    await chrome.debugger.sendCommand({ tabId }, "Input.dispatchKeyEvent", {
+      type: "rawKeyDown",
+      ...basePayload,
+    })
+  }
+
+  await chrome.debugger.sendCommand({ tabId }, "Input.dispatchKeyEvent", {
+    type: "keyUp",
+    ...basePayload,
+  })
 }
 
 async function runInPage(tabId, command, args) {
@@ -738,6 +909,49 @@ async function pageOps(command, args) {
     return { ok: true, selectorUsed: match.selectorUsed }
   }
 
+  if (command === "hover") {
+    const match = await resolveMatches(selectors, index, timeoutMs, pollMs)
+    if (!match.chosen) {
+      return { ok: false, error: `Element not found for selectors: ${selectors.join(", ")}` }
+    }
+
+    try {
+      match.chosen.scrollIntoView({ block: "center", inline: "center" })
+    } catch {}
+
+    const rect = match.chosen.getBoundingClientRect()
+    const x = Math.min(Math.max(rect.left + rect.width / 2, 0), window.innerWidth - 1)
+    const y = Math.min(Math.max(rect.top + rect.height / 2, 0), window.innerHeight - 1)
+    const opts = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y }
+
+    try {
+      match.chosen.dispatchEvent(new MouseEvent("mouseover", opts))
+      match.chosen.dispatchEvent(new MouseEvent("mouseenter", opts))
+      match.chosen.dispatchEvent(new MouseEvent("mousemove", opts))
+    } catch {}
+
+    return { ok: true, selectorUsed: match.selectorUsed }
+  }
+
+  if (command === "focus") {
+    const match = await resolveMatches(selectors, index, timeoutMs, pollMs)
+    if (!match.chosen) {
+      return { ok: false, error: `Element not found for selectors: ${selectors.join(", ")}` }
+    }
+
+    try {
+      match.chosen.scrollIntoView({ block: "center", inline: "center" })
+    } catch {}
+
+    try {
+      match.chosen.focus()
+    } catch {
+      return { ok: false, error: `Failed to focus: ${match.selectorUsed}` }
+    }
+
+    return { ok: true, selectorUsed: match.selectorUsed }
+  }
+
   if (command === "type") {
     const text = options.text
     const shouldClear = !!options.clear
@@ -777,6 +991,16 @@ async function pageOps(command, args) {
     }
 
     return { ok: false, error: `Element is not typable: ${match.selectorUsed} (${tag.toLowerCase()})` }
+  }
+
+  if (command === "history_back") {
+    history.back()
+    return { ok: true }
+  }
+
+  if (command === "history_forward") {
+    history.forward()
+    return { ok: true }
   }
 
   if (command === "select") {
@@ -1083,6 +1307,16 @@ async function toolOpenTab({ url, active = true }) {
   return { tabId: tab.id, content: { tabId: tab.id, url: tab.url, active: tab.active } }
 }
 
+async function toolSetActiveTab({ tabId }) {
+  if (!Number.isFinite(tabId)) throw new Error("tabId is required")
+  const tab = await chrome.tabs.get(tabId)
+  await chrome.tabs.update(tab.id, { active: true })
+  if (Number.isFinite(tab.windowId)) {
+    await chrome.windows.update(tab.windowId, { focused: true })
+  }
+  return { tabId: tab.id, content: { tabId: tab.id, active: true, windowId: tab.windowId } }
+}
+
 async function toolCloseTab({ tabId }) {
   if (!Number.isFinite(tabId)) throw new Error("tabId is required")
   await chrome.tabs.remove(tabId)
@@ -1111,6 +1345,35 @@ async function toolNavigate({ url, tabId }) {
   return { tabId: tab.id, content: `Navigated to ${url}` }
 }
 
+async function toolBack({ tabId }) {
+  const tab = await getTabById(tabId)
+  if (typeof chrome.tabs.goBack === "function") {
+    await chrome.tabs.goBack(tab.id)
+  } else {
+    await runInPage(tab.id, "history_back", {})
+  }
+  await waitForTabStatusComplete(tab.id, 3000)
+  return { tabId: tab.id, content: "Navigated back" }
+}
+
+async function toolForward({ tabId }) {
+  const tab = await getTabById(tabId)
+  if (typeof chrome.tabs.goForward === "function") {
+    await chrome.tabs.goForward(tab.id)
+  } else {
+    await runInPage(tab.id, "history_forward", {})
+  }
+  await waitForTabStatusComplete(tab.id, 3000)
+  return { tabId: tab.id, content: "Navigated forward" }
+}
+
+async function toolReload({ tabId }) {
+  const tab = await getTabById(tabId)
+  await chrome.tabs.reload(tab.id)
+  await waitForTabStatusComplete(tab.id, 10000)
+  return { tabId: tab.id, content: "Reloaded tab" }
+}
+
 async function toolClick({ selector, tabId, index = 0, timeoutMs, pollMs }) {
   if (!selector) throw new Error("Selector is required")
   const tab = await getTabById(tabId)
@@ -1119,6 +1382,26 @@ async function toolClick({ selector, tabId, index = 0, timeoutMs, pollMs }) {
   if (!result?.ok) throw new Error(result?.error || "Click failed")
   const used = result.selectorUsed || selector
   return { tabId: tab.id, content: `Clicked ${used}` }
+}
+
+async function toolHover({ selector, tabId, index = 0, timeoutMs, pollMs }) {
+  if (!selector) throw new Error("Selector is required")
+  const tab = await getTabById(tabId)
+
+  const result = await runInPage(tab.id, "hover", { selector, index, timeoutMs, pollMs })
+  if (!result?.ok) throw new Error(result?.error || "Hover failed")
+  const used = result.selectorUsed || selector
+  return { tabId: tab.id, content: `Hovered ${used}` }
+}
+
+async function toolFocus({ selector, tabId, index = 0, timeoutMs, pollMs }) {
+  if (!selector) throw new Error("Selector is required")
+  const tab = await getTabById(tabId)
+
+  const result = await runInPage(tab.id, "focus", { selector, index, timeoutMs, pollMs })
+  if (!result?.ok) throw new Error(result?.error || "Focus failed")
+  const used = result.selectorUsed || selector
+  return { tabId: tab.id, content: `Focused ${used}` }
 }
 
 async function toolType({ selector, text, tabId, clear = false, index = 0, timeoutMs, pollMs }) {
@@ -1130,6 +1413,19 @@ async function toolType({ selector, text, tabId, clear = false, index = 0, timeo
   if (!result?.ok) throw new Error(result?.error || "Type failed")
   const used = result.selectorUsed || selector
   return { tabId: tab.id, content: `Typed "${text}" into ${used}` }
+}
+
+async function toolKey({ key, selector, tabId, index = 0, timeoutMs, pollMs }) {
+  if (!key) throw new Error("key is required")
+  const tab = await getTabById(tabId)
+
+  if (selector) {
+    const focusResult = await runInPage(tab.id, "focus", { selector, index, timeoutMs, pollMs })
+    if (!focusResult?.ok) throw new Error(focusResult?.error || "Focus failed")
+  }
+
+  await dispatchDebuggerKey(tab.id, key)
+  return { tabId: tab.id, content: `Pressed ${key}` }
 }
 
 async function toolSelect({ selector, value, label, optionIndex, tabId, index = 0, timeoutMs, pollMs }) {

@@ -32,6 +32,7 @@ import { createHash } from "crypto";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PACKAGE_ROOT = join(__dirname, "..");
+const PACKAGE_INSTALL_SPEC = "github:Arjun-Ingole/opencode-browser";
 
 const BASE_DIR = join(homedir(), ".opencode-browser");
 const EXTENSION_DIR = join(BASE_DIR, "extension");
@@ -421,7 +422,7 @@ function reportWindowsNativeHostStatus() {
     }
   }
   if (!foundAny) {
-    warn("No native host registry entries found. Run: npx @different-ai/opencode-browser install");
+    warn(`No native host registry entries found. Run: npx ${PACKAGE_INSTALL_SPEC} install`);
   }
 }
 
@@ -437,6 +438,45 @@ function loadConfig() {
 function saveConfig(config) {
   ensureDir(BASE_DIR);
   writeFileSync(CONFIG_DST, JSON.stringify(config, null, 2) + "\n");
+}
+
+function normalizeBackendMode(value) {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!raw) return null;
+  if (raw === "auto") return "auto";
+  if (["agent", "agent-browser", "agentbrowser"].includes(raw)) return "agent";
+  if (["native", "extension", "chrome"].includes(raw)) return "native";
+  return null;
+}
+
+function getConfiguredBackendMode(config = loadConfig()) {
+  const envRaw = process.env.OPENCODE_BROWSER_BACKEND || process.env.OPENCODE_BROWSER_MODE || null;
+  const envMode = normalizeBackendMode(envRaw);
+  if (envMode) return { mode: envMode, source: "env", raw: envRaw };
+
+  const configRaw =
+    typeof config?.browser?.backend === "string"
+      ? config.browser.backend
+      : typeof config?.backend === "string"
+        ? config.backend
+        : null;
+  const configMode = normalizeBackendMode(configRaw);
+  if (configMode) return { mode: configMode, source: "config", raw: configRaw };
+
+  return { mode: "auto", source: "default", raw: null };
+}
+
+function mergeSavedConfig(patch) {
+  const current = loadConfig() || {};
+  const next = { ...current, ...patch };
+  const browserConfig = current?.browser && typeof current.browser === "object" ? current.browser : {};
+  if (Object.prototype.hasOwnProperty.call(patch, "backend")) {
+    next.browser = { ...browserConfig, backend: patch.backend };
+    delete next.backend;
+  } else if (current?.browser) {
+    next.browser = browserConfig;
+  }
+  saveConfig(next);
 }
 
 async function loadPluginTools() {
@@ -499,6 +539,11 @@ async function executeTool(toolName, args = {}) {
   return await tool.execute(args, {});
 }
 
+async function getEffectiveBrowserStatus() {
+  const statusRaw = await executeTool("browser_status", {});
+  return parseMaybeJson(statusRaw);
+}
+
 async function listTools() {
   header("Browser Tools");
   const tools = await loadPluginTools();
@@ -518,7 +563,7 @@ async function listTools() {
 async function runToolCommand() {
   const toolName = process.argv[3];
   if (!toolName) {
-    throw new Error("Usage: npx @different-ai/opencode-browser tool <toolName> [argsJson]");
+    throw new Error(`Usage: npx ${PACKAGE_INSTALL_SPEC} tool <toolName> [argsJson]`);
   }
 
   const args = parseJsonArg(getToolArgJson(), {});
@@ -545,13 +590,12 @@ function readTabId(value) {
 
 async function selfTest() {
   header("CLI Self-Test");
-  log("Running extension-backed smoke test via plugin tools...");
+  log("Running browser smoke test via plugin tools...");
 
-  const statusRaw = await executeTool("browser_status", {});
-  const status = parseMaybeJson(statusRaw);
-  if (!status || status.broker !== true || status.hostConnected !== true) {
+  const status = await getEffectiveBrowserStatus();
+  if (!status || status.connected !== true || !status.backend) {
     throw new Error(
-      "browser_status indicates the extension is not connected. Run `npx @different-ai/opencode-browser install` and click the extension icon in Chrome."
+      `browser_status indicates no usable backend is connected. Run \`npx ${PACKAGE_INSTALL_SPEC} status\` for backend details.`
     );
   }
 
@@ -612,6 +656,38 @@ async function selfTest() {
   success("Self-test passed: click + selector text + container scroll are working.");
 }
 
+async function backendCommand() {
+  header("Backend Preference");
+
+  const requested = process.argv[3];
+  if (!requested) {
+    const cfg = loadConfig();
+    const preference = getConfiguredBackendMode(cfg);
+    success(`Configured default: ${normalizeBackendMode(cfg?.browser?.backend || cfg?.backend) || "auto"}`);
+    success(`Effective preference: ${preference.mode} (${preference.source})`);
+    try {
+      const status = await getEffectiveBrowserStatus();
+      if (status?.backend) {
+        success(`Effective backend: ${status.backend} (${status.selectionReason})`);
+      } else {
+        warn(`No backend selected (${status?.selectionReason || "unavailable"})`);
+      }
+    } catch (error) {
+      warn(`Could not resolve backend status: ${error?.message || error}`);
+    }
+    return;
+  }
+
+  const mode = normalizeBackendMode(requested);
+  if (!mode) {
+    throw new Error(`Usage: npx ${PACKAGE_INSTALL_SPEC} backend [auto|agent|native]`);
+  }
+
+  mergeSavedConfig({ backend: mode });
+  success(`Saved backend preference: ${mode}`);
+  log("Environment variables still override the saved default.");
+}
+
 async function main() {
   const command = process.argv[2];
 
@@ -630,6 +706,8 @@ ${color("cyan", "Browser automation plugin (native messaging + per-tab ownership
     await runToolCommand();
   } else if (command === "self-test") {
     await selfTest();
+  } else if (command === "backend") {
+    await backendCommand();
   } else if (command === "uninstall") {
     await uninstall();
   } else if (command === "status") {
@@ -641,29 +719,31 @@ ${color("cyan", "Browser automation plugin (native messaging + per-tab ownership
   } else {
     log(`
 ${color("bright", "Usage:")}
-  npx @different-ai/opencode-browser install
-  npx @different-ai/opencode-browser update
-  npx @different-ai/opencode-browser status
-  npx @different-ai/opencode-browser uninstall
-  npx @different-ai/opencode-browser tools
-  npx @different-ai/opencode-browser tool <toolName> [argsJson]
-  npx @different-ai/opencode-browser self-test
-  npx @different-ai/opencode-browser agent-install
-  npx @different-ai/opencode-browser agent-gateway
+  npx ${PACKAGE_INSTALL_SPEC} install
+  npx ${PACKAGE_INSTALL_SPEC} update
+  npx ${PACKAGE_INSTALL_SPEC} backend [auto|agent|native]
+  npx ${PACKAGE_INSTALL_SPEC} status
+  npx ${PACKAGE_INSTALL_SPEC} uninstall
+  npx ${PACKAGE_INSTALL_SPEC} tools
+  npx ${PACKAGE_INSTALL_SPEC} tool <toolName> [argsJson]
+  npx ${PACKAGE_INSTALL_SPEC} self-test
+  npx ${PACKAGE_INSTALL_SPEC} agent-install
+  npx ${PACKAGE_INSTALL_SPEC} agent-gateway
 
 ${color("bright", "Options:")}
   --extension-id <id> (or OPENCODE_BROWSER_EXTENSION_ID)
   --args '{"selector":"text:Inbox"}' (for tool command)
 
 ${color("bright", "Quick Start:")}
-  1. Run: npx @different-ai/opencode-browser install
+  1. Run: npx ${PACKAGE_INSTALL_SPEC} install
   2. Restart OpenCode
-  3. Use: browser_navigate / browser_click / browser_snapshot
+  3. Optional: npx ${PACKAGE_INSTALL_SPEC} backend auto
+  4. Use: browser_navigate / browser_click / browser_snapshot
 
 ${color("bright", "Agent Mode:")}
-  1. Run: npx @different-ai/opencode-browser agent-install
-  2. Set OPENCODE_BROWSER_BACKEND=agent
-  3. Optionally run: npx @different-ai/opencode-browser agent-gateway
+  1. Run: npx ${PACKAGE_INSTALL_SPEC} agent-install
+  2. Set backend with OPENCODE_BROWSER_BACKEND=agent or the backend command
+  3. Optionally run: npx ${PACKAGE_INSTALL_SPEC} agent-gateway
 `);
   }
 
@@ -765,7 +845,7 @@ Find it at ${color("cyan", "chrome://extensions")}:
   const hostPath = writeHostWrapper(nodePath);
   success(`Installed host wrapper: ${hostPath}`);
 
-  saveConfig({ extensionId, installedAt: new Date().toISOString(), nodePath });
+  mergeSavedConfig({ extensionId, installedAt: new Date().toISOString(), nodePath });
 
   header("Step 6: Register Native Messaging Host");
 
@@ -787,7 +867,7 @@ Find it at ${color("cyan", "chrome://extensions")}:
 
   header("Step 7: Configure OpenCode");
 
-  const desiredPlugin = "@different-ai/opencode-browser";
+  const desiredPlugin = PACKAGE_INSTALL_SPEC;
 
   function normalizePlugins(val) {
     if (Array.isArray(val)) return val.filter((v) => typeof v === "string");
@@ -1050,7 +1130,7 @@ Find it at ${color("cyan", "chrome://extensions")}:
   const hostPath = writeHostWrapper(nodePath);
   success(`Updated host wrapper: ${hostPath}`);
 
-  saveConfig({ extensionId, installedAt: new Date().toISOString(), nodePath });
+  mergeSavedConfig({ extensionId, installedAt: new Date().toISOString(), nodePath });
 
   header("Step 4: Register Native Messaging Host");
 
@@ -1096,6 +1176,11 @@ async function status() {
     warn("No config.json found (run install)");
   }
 
+  const backendPreference = getConfiguredBackendMode(cfg);
+  const savedBackend = normalizeBackendMode(cfg?.backend || cfg?.browser?.backend) || "auto";
+  success(`Saved backend default: ${savedBackend}`);
+  success(`Effective backend preference: ${backendPreference.mode} (${backendPreference.source})`);
+
   const manifestId = getExtensionIdFromManifest();
   if (manifestId) {
     success(`Fixed extension ID (manifest): ${manifestId}`);
@@ -1119,7 +1204,7 @@ async function status() {
       }
     }
     if (!foundAny) {
-      warn("No native host manifest found. Run: npx @different-ai/opencode-browser install");
+      warn(`No native host manifest found. Run: npx ${PACKAGE_INSTALL_SPEC} install`);
     }
   }
 
@@ -1128,6 +1213,29 @@ async function status() {
     success(`Broker status: ok (hostConnected=${!!brokerStatus.data?.hostConnected})`);
   } else {
     warn(`Broker status: ${brokerStatus.error || "unavailable"}`);
+  }
+
+  if (existsSync(join(PACKAGE_ROOT, "dist", "plugin.js"))) {
+    try {
+      const effective = await getEffectiveBrowserStatus();
+      if (effective?.backend) {
+        success(`Selected backend: ${effective.backend} (${effective.selectionReason})`);
+      } else {
+        warn(`Selected backend: unavailable (${effective?.selectionReason || "unknown"})`);
+      }
+      if (effective?.backends?.agent) {
+        const agent = effective.backends.agent;
+        success(`Agent backend connected: ${!!agent.connected}`);
+        if (!agent.connected && agent.error) warn(`Agent backend error: ${agent.error}`);
+      }
+      if (effective?.backends?.native) {
+        const native = effective.backends.native;
+        success(`Native backend connected: ${!!native.connected}`);
+        if (!native.connected && native.error) warn(`Native backend error: ${native.error}`);
+      }
+    } catch (error) {
+      warn(`Could not load browser_status from the plugin: ${error?.message || error}`);
+    }
   }
 }
 
@@ -1200,7 +1308,7 @@ async function uninstall() {
 ${color("bright", "Note:")}
 - The unpacked extension folder remains at: ${EXTENSION_DIR}
 - Remove it manually in ${color("cyan", "chrome://extensions")}
-- Remove ${color("bright", "@different-ai/opencode-browser")} from your opencode.json/opencode.jsonc plugin list if desired.
+- Remove ${color("bright", PACKAGE_INSTALL_SPEC)} from your opencode.json/opencode.jsonc plugin list if desired.
 `);
 }
 
