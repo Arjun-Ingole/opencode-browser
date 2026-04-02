@@ -1018,6 +1018,11 @@ async function pageOps(command, args) {
       el.scrollIntoView({ block: "center", inline: "center" })
     } catch {}
 
+    try {
+      el.click()
+      return
+    } catch {}
+
     const rect = el.getBoundingClientRect()
     const x = Math.min(Math.max(rect.left + rect.width / 2, 0), window.innerWidth - 1)
     const y = Math.min(Math.max(rect.top + rect.height / 2, 0), window.innerHeight - 1)
@@ -1029,10 +1034,6 @@ async function pageOps(command, args) {
       el.dispatchEvent(new MouseEvent("mousedown", opts))
       el.dispatchEvent(new MouseEvent("mouseup", opts))
       el.dispatchEvent(new MouseEvent("click", opts))
-    } catch {}
-
-    try {
-      el.click()
     } catch {}
   }
 
@@ -1805,9 +1806,27 @@ async function toolClick({ selector, tabId, index = 0, timeoutMs, pollMs }) {
   if (!selector) throw new Error("Selector is required")
   const tab = await getTabById(tabId)
 
-  const result = await runInPage(tab.id, "click", { selector, index, timeoutMs, pollMs })
-  if (!result?.ok) throw new Error(result?.error || "Click failed")
-  const used = result.selectorUsed || selector
+  const state = await ensureDebuggerAttached(tab.id)
+  if (state.attached) {
+    const boxResult = await runInPage(tab.id, "query", {
+      selector,
+      mode: "bounding_box",
+      index,
+      timeoutMs,
+      pollMs,
+    })
+    if (!boxResult?.ok || !boxResult?.value) {
+      throw new Error(boxResult?.error || "Click failed")
+    }
+    const used = boxResult.selectorUsed || selector
+    const { centerX, centerY } = boxResult.value
+    await dispatchCoordinateClick(tab.id, centerX, centerY, "left", 1)
+    return { tabId: tab.id, content: `Clicked ${used}` }
+  }
+
+  const pageResult = await runInPage(tab.id, "click", { selector, index, timeoutMs, pollMs })
+  if (!pageResult?.ok) throw new Error(pageResult?.error || "Click failed")
+  const used = pageResult.selectorUsed || selector
   return { tabId: tab.id, content: `Clicked ${used}` }
 }
 
