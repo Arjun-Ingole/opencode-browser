@@ -12907,6 +12907,8 @@ function createAgentBackend(sessionId) {
   let agentSocket = null;
   let agentReqId = 0;
   const agentPending = new Map;
+  let agentLaunched = false;
+  let launchPromise = null;
   async function connectToAgent() {
     return await new Promise((resolve2, reject) => {
       const socket = connection.type === "unix" ? net.createConnection(connection.path) : net.createConnection({ host: connection.host, port: connection.port });
@@ -12974,7 +12976,24 @@ function createAgentBackend(sessionId) {
       }, REQUEST_TIMEOUT_MS);
     });
   }
+  async function ensureAgentLaunched() {
+    if (agentLaunched)
+      return;
+    if (!launchPromise) {
+      launchPromise = (async () => {
+        await agentRequest("launch", { headless: true });
+        agentLaunched = true;
+      })().finally(() => {
+        if (!agentLaunched)
+          launchPromise = null;
+      });
+    }
+    await launchPromise;
+  }
   async function agentCommand(action, payload) {
+    if (action !== "launch" && action !== "close") {
+      await ensureAgentLaunched();
+    }
     return await agentRequest(action, payload);
   }
   async function withTab(tabId, action) {
@@ -13634,6 +13653,7 @@ function createAgentBackend(sessionId) {
     let error45;
     try {
       await ensureAgentSocket();
+      await ensureAgentLaunched();
       connected = true;
     } catch (err) {
       error45 = err instanceof Error ? err.message : String(err);

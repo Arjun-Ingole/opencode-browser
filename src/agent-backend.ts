@@ -633,6 +633,8 @@ export function createAgentBackend(sessionId: string): AgentBackend {
   let agentSocket: net.Socket | null = null;
   let agentReqId = 0;
   const agentPending = new Map<string, PendingRequest>();
+  let agentLaunched = false;
+  let launchPromise: Promise<void> | null = null;
 
   async function connectToAgent(): Promise<net.Socket> {
     return await new Promise((resolve, reject) => {
@@ -712,7 +714,23 @@ export function createAgentBackend(sessionId: string): AgentBackend {
     });
   }
 
+  async function ensureAgentLaunched(): Promise<void> {
+    if (agentLaunched) return;
+    if (!launchPromise) {
+      launchPromise = (async () => {
+        await agentRequest("launch", { headless: true });
+        agentLaunched = true;
+      })().finally(() => {
+        if (!agentLaunched) launchPromise = null;
+      });
+    }
+    await launchPromise;
+  }
+
   async function agentCommand(action: string, payload: Record<string, any>): Promise<any> {
+    if (action !== "launch" && action !== "close") {
+      await ensureAgentLaunched();
+    }
     return await agentRequest(action, payload);
   }
 
@@ -1424,6 +1442,7 @@ export function createAgentBackend(sessionId: string): AgentBackend {
     let error: string | undefined;
     try {
       await ensureAgentSocket();
+      await ensureAgentLaunched();
       connected = true;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
