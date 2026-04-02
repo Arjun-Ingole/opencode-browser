@@ -341,6 +341,7 @@ function getNativeHostDirs(osName) {
   if (osName === "darwin") {
     const base = join(homedir(), "Library", "Application Support");
     return [
+      join(base, "Arc", "User Data", "NativeMessagingHosts"),
       join(base, "Google", "Chrome", "NativeMessagingHosts"),
       join(base, "Chromium", "NativeMessagingHosts"),
       join(base, "BraveSoftware", "Brave-Browser", "NativeMessagingHosts"),

@@ -1450,7 +1450,7 @@ async function pageOps(command, args) {
       }
 
       try {
-        match.chosen.scrollIntoView({ behavior: "smooth", block: "center" })
+        match.chosen.scrollIntoView({ block: "center", inline: "center" })
       } catch {}
       return { ok: true, selectorUsed: match.selectorUsed }
     }
@@ -1808,6 +1808,15 @@ async function toolClick({ selector, tabId, index = 0, timeoutMs, pollMs }) {
 
   const state = await ensureDebuggerAttached(tab.id)
   if (state.attached) {
+    const scrollResult = await runInPage(tab.id, "scroll", {
+      selector,
+      index,
+      timeoutMs,
+      pollMs,
+    })
+    if (!scrollResult?.ok) {
+      throw new Error(scrollResult?.error || "Click failed")
+    }
     const boxResult = await runInPage(tab.id, "query", {
       selector,
       mode: "bounding_box",
