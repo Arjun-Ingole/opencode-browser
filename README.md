@@ -2,6 +2,8 @@
 
 Browser automation plugin for [OpenCode](https://opencode.ai).
 
+This repository is the maintained fork. For this repo, the canonical install/debug/plugin reference is always `github:Arjun-Ingole/opencode-browser`, not the upstream package.
+
 Control your real Chromium browser (Chrome/Brave/Arc/Edge) using your existing profile (logins, cookies, bookmarks). No DevTools Protocol, no security prompts.
 
 
@@ -25,6 +27,8 @@ bunx github:Arjun-Ingole/opencode-browser install
 ```
 
 Supports macOS, Linux, and Windows (Chrome/Edge/Brave/Chromium).
+
+If you previously installed the upstream package, uninstall it first and then use the fork commands in this README so your native host manifest, plugin config, and extension instructions all point at the same package.
 
 
 https://github.com/user-attachments/assets/d5767362-fbf3-4023-858b-90f06d9f0b25
